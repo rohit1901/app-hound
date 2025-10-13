@@ -1,0 +1,45 @@
+name: Create Release and Bump Version
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "New version (e.g., 0.2.0)"
+        required: true
+
+jobs:
+  bump-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install Poetry
+        uses: python-poetry/poetry-action@v2
+        with:
+          poetry-version: "2.0.0"
+
+      - name: Set Git user
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Bump version
+        run: |
+          poetry version ${{ github.event.inputs.version }}
+          git add pyproject.toml
+          git commit -m "Bump: version ${{ github.event.inputs.version }}"
+
+      - name: Push version bump
+        run: git push origin HEAD:${{ github.ref_name }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.event.inputs.version }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
