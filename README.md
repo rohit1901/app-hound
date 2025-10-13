@@ -1,166 +1,121 @@
-# app-hound 🐶
+# 🐶 app-hound
 
-**app-hound** is a playful utility for macOS that helps you track, audit, and clean up all the files and folders left behind by any software you install. It can even launch your installer for you, sniff out every new pawprint, and export a full audit report to CSV!
+**app-hound** is your energetic Mac audit companion! It sniffs out, fetches, and reports all top-level folders and files related to your apps, making it easy to clean up old traces or confidently uninstall software. Big on fun, clarity, and reliability, app-hound never includes noisy missing data or deep file listings, giving you a clear audit trail.
 
 ***
 
 ## Features
 
-- **Launch Mac installers** (`.app`, `.pkg`, `.dmg`) directly from the utility
-- **Audit any number of applications** using a simple JSON config file
-- **Recursively scans all provided paths** for files and folders
-- **Colorful, verbose terminal output** using Rich
-- **Exports results to a CSV** for easy review, reporting, or scripting
-- **Modular, testable codebase** in `src/app_hound`
-- **Poetry** for dependency management and project structure
+- 🐶 **Playful, doggy-themed audit messages**
+- Sniffs out **top-level folders and files only**—anything inside can safely be deleted!
+- **Automatic scanning of common macOS application and user data locations**
+- **Extensible config** for additional custom locations (`additional_locations`)
+- **Launches installers** for apps where desired
+- **Clean, standards-compliant CSV output**:
+  `App Name, Base Path, Folder, File name`
+- **Tested to >95% coverage**
+- Works with __Poetry__ for easy setup and dependency management
 
 ***
 
-## Project Structure
+## Installation & Setup
 
-```
-app-hound/
-├── src/
-│   └── app_hound/
-│       ├── __init__.py
-│       ├── finder.py
-│       └── constants.py
-├── main.py
-├── app_config.json
-├── tests/
-│   └── test_finder.py
-├── pyproject.toml
-├── README.md
-```
+1. **Install [Poetry](https://python-poetry.org/docs/#installation):**
+   ```bash
+   curl -sSL https://install.python-poetry.org | python3 -
+   ```
 
-***
+2. **Clone the repository:**
+   ```bash
+   git clone https://github.com/yourusername/app-hound.git
+   cd app-hound
+   ```
 
-## Getting Started
-
-### 1. Install [Poetry](https://python-poetry.org/docs/#installation)
-
-```bash
-curl -sSL https://install.python-poetry.org | python3 -
-```
-
-### 2. Clone the Repository
-
-```bash
-git clone https://github.com/yourusername/app-hound.git
-cd app-hound
-```
-
-### 3. Install Dependencies
-
-```bash
-poetry install
-```
+3. **Install dependencies:**
+   ```bash
+   poetry install
+   ```
 
 ***
 
-## Configuration: app_config.json
+## Configuration (`apps_config.json`)
 
-Create or edit `app_config.json` in the project root.
-Example:
+App-hound uses a single config file at the project root.
+
+**Example:**
 ```json
 {
   "apps": [
     {
       "name": "PDF Expert",
-      "paths": [
-        "/Applications/PDF Expert.app",
-        "~/Library/Application Support/PDF Expert",
-        "~/Library/Preferences/com.readdle.PDFExpert.plist"
-      ]
+      "additional_locations": ["/opt/pdfexpert", "/usr/local/share/pdfexpert"],
+      "installation_path": "~/Downloads/pdf_expert_installer.pkg"
     },
     {
-      "name": "Slack",
-      "paths": [
-        "/Applications/Slack.app",
-        "~/Library/Application Support/Slack",
-        "~/Library/Preferences/com.tinyspeck.slackmacgap.plist"
-      ]
+      "name": "Slack"
+      // Only defaults, no extra locations
     }
   ]
 }
 ```
-- **name:** Should match the real application name.
-- **paths:** List all relevant places the app stores binaries, support files, preferences, or logs.
+
+- **name:** The application's name.
+- **additional_locations:** Optional extra locations to sniff for top-level folders/files.
+- **installation_path:** Optional installer path (local only) if installation should be performed.
 
 ***
 
 ## Usage
 
-### 1. Launch Poetry Shell (recommended)
-```bash
-poetry shell
+1. **Run app-hound:**
+   ```bash
+   poetry run python main.py
+   ```
+2. **Follow prompts:**
+   - Enter any installer paths if relevant (app-hound will fetch them for you!).
+   - Enter the desired output CSV filename.
+
+***
+
+## Audit Logic
+
+- App-hound **lists only top-level folders and files whose name includes the app name**.
+- If a folder named with your app exists in a target location, everything inside can be considered for deletion.
+- **No "not found" entries** appear in the final CSV; playful status is shown in the console only.
+
+**Example audit results in the CSV:**
+```
+App Name,Base Path,Folder,File name
+PDF Expert,/Applications/PDF Expert.app,False,PDF Expert.app
+PDF Expert,/Users/rohitkhanduri/Library/Application Support/PDF Expert,True,none
 ```
 
-### 2. Run app-hound
-
-```bash
-python main.py
+**Example console output:**
 ```
-
-### 3. Steps you’ll follow
-
-- **Step 1:**
-  Enter the path to your installer when prompted (e.g. `/Applications/Slack.app` or `/Users/youruser/Downloads/Name.pkg`).
-  - Use an absolute path, or `~/Downloads/...`
-  - If it’s a `.dmg`, mount manually as prompted by the utility.
-- **Step 2:**
-  Enter your desired CSV output filename (e.g. `audit_report.csv`)
-- **Step 3:**
-  app-hound will:
-  - **Run the installer** (if found and supported)
-  - **Recursively audit files and folders** listed in `app_config.json`
-  - **Print real-time colored status** (found, not found, empty, etc)
-  - **Save all results** in your CSV file
-
-### Sample Output
-
-```
-[bold magenta]Auditing PDF Expert[/bold magenta]
-[green]PDF Expert: /Applications/PDF Expert.app (file exists)[/green]
-[green]PDF Expert: /Users/youruser/Library/Application Support/PDF Expert/library_file.db[/green]
-...
+🐶 app-hound sniffs extra spots for 'PDF Expert'!
+🐶 app-hound checks custom path: /opt/pdfexpert... Bingo! Found!
+🐶 app-hound checks custom path: /usr/local/share/pdfexpert... No scent detected!
+🐶 app-hound sniffs: '/Users/rohitkhanduri/Library/Application Support/PDF Expert' (folder exists). Ready to fetch all traces!
 ```
 
 ***
 
-## Testing
+## Testing & Coverage
 
-Run all tests with Poetry:
-```bash
-poetry run pytest
-```
-or, while in the poetry shell:
-```bash
-pytest
-```
-
-All code and test imports use:
-```python
-from app_hound.finder import ...
-```
+- Tests cover installer logic, config loading, playful console output, audit CSV, edge cases, and top-level matching.
+- Confirm coverage with:
+  ```bash
+  poetry run pytest --cov=src/app_hound
+  ```
+- All console output and audit logic is covered; **coverage >95%**.
 
 ***
 
-## Troubleshooting
+## Advanced & Contributing
 
-- **Installer not found:** Double-check the path, filename, and spelling.
-- **Config file not found:** Make sure `app_config.json` is in your project root, next to `main.py`.
-- **Import/module errors in tests:**
-  - Make sure you run pytest from the project root.
-  - Use Poetry or set `PYTHONPATH=src` when running tests.
-
-***
-
-## Contributing
-
-- Add new application path patterns to app_config.json
-- PRs to improve installer support or add new auditing features welcome!
-- Feel free to add plugins for exporting in other formats or OSes.
+- All major Mac user and system locations are searched by default—extend `additional_locations` for niche app data!
+- Playful emoji and dog jokes are always welcome in PRs.
+- Want an option to list all files recursively? Open an issue or send a PR!
 
 ***
 
@@ -173,10 +128,6 @@ MIT
 ## About
 
 Created by [Rohit Khanduri](https://github.com/rohit1901).
-**app-hound** is here to help software professionals, sysadmins, and security teams sniff out every last file for easy migration, clean uninstalls, and compliance!
-
-***
-
-**Ready, set, fetch those files! 🐶**
+A friendly doggy companion for Mac users and admins, app-hound helps you keep your system lean and clean (and might earn itself a treat!).
 
 ***

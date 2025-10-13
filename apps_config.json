@@ -2,11 +2,11 @@
   "apps": [
     {
       "name": "PDF Expert",
-      "paths": [
-        "/Applications/PDF Expert.app",
-        "~/Library/Application Support/PDF Expert",
-        "~/Library/Preferences/com.readdle.PDFExpert.plist"
-      ]
+      "additional_locations": ["/opt/pdf-expert", "/usr/local/share/pdfexpert"]
+    },
+    {
+      "name": "Spotify",
+      "additional_locations": ["/opt/spotify", "/usr/local/share/spotify"]
     }
   ]
 }
