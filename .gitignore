@@ -180,8 +180,5 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
-# App Hound
-audit/
-
 # OS
 .DS_Store
