@@ -18,7 +18,7 @@ jobs:
           python-version: "3.13"
 
       - name: Install Poetry
-        uses: python-poetry/poetry-action@v2
+        uses: snok/install-poetry@v1
         with:
           poetry-version: "2.0.0"
 
