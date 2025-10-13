@@ -1,0 +1,25 @@
+[project]
+name = "app-hound"
+version = "0.1.0"
+description = "A simple Python utility to list and export all files and directories associated with any apps on a Mac. Helps users track installed paths and audit/uninstall completely."
+authors = [
+    {name = "Rohit Khanduri",email = "rohit.khanduri@hotmail.com"}
+]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "rich (>=14.2.0,<15.0.0)",
+    "pytest (>=8.4.2,<9.0.0)",
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[dependency-groups]
+dev = [
+    "flake8 (>=7.3.0,<8.0.0)",
+    "mypy (>=1.18.2,<2.0.0)"
+]

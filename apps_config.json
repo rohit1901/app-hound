@@ -1,0 +1,12 @@
+{
+  "apps": [
+    {
+      "name": "PDF Expert",
+      "paths": [
+        "/Applications/PDF Expert.app",
+        "~/Library/Application Support/PDF Expert",
+        "~/Library/Preferences/com.readdle.PDFExpert.plist"
+      ]
+    }
+  ]
+}
