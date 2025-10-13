@@ -6,8 +6,8 @@ from app_hound.finder import (
 )
 import csv
 
-APP_CONFIG_PATH = Path(__file__).parent / "apps_config.json"
-AUDIT_DIR = Path(__file__).parent / "audit"
+APP_CONFIG_PATH = Path(__file__).parents[2] / "apps_config.json"
+AUDIT_DIR = Path(__file__).parents[2] / "audit"
 
 
 def process_app_entries(app: dict) -> list:
@@ -24,6 +24,10 @@ def process_app_entries(app: dict) -> list:
 
 
 def main():
+    if not APP_CONFIG_PATH.exists():
+        print(f"🐶 app-hound couldn't find apps_config.json at {APP_CONFIG_PATH}.")
+        print("Make sure your config file is in your project root directory!\n")
+        exit(1)
     print("\n🐶 app-hound is on the trail, ready to fetch audit results!\n")
     apps = load_apps_from_json(str(APP_CONFIG_PATH))
     all_results = []

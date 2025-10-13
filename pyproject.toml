@@ -24,3 +24,6 @@ dev = [
     "mypy (>=1.18.2,<2.0.0)",
     "pytest-cov (>=7.0.0,<8.0.0)"
 ]
+
+[tool.poetry.scripts]
+app-hound = "app_hound.main:main"
