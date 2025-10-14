@@ -76,7 +76,7 @@ jobs:
           git push https://x-access-token:${AH_PAT_STRONG}@github.com/${GITHUB_REPOSITORY} "$BRANCH"
 
       - name: Create Pull Request (signed commit)
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.AH_PAT_STRONG }}
           branch: homebrew-bump-${{ github.ref_name }}
