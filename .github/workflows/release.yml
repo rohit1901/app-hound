@@ -34,7 +34,7 @@ jobs:
           git commit -m "Bump: version ${{ github.event.inputs.version }}"
 
       - name: Push version bump
-        run: git push origin HEAD:${{ github.ref_name }}
+        run: git push https://x-access-token:${{ secrets.GH_PAT_STRONG }}@github.com/${{ github.repository }} HEAD:${{ github.ref_name }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -42,4 +42,4 @@ jobs:
           tag_name: v${{ github.event.inputs.version }}
           generate_release_notes: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.AH_PAT_STRONG }}
