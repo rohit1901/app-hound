@@ -1,0 +1,50 @@
+name: Update Homebrew Formula
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  update-formula:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up python (for shasum)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Download release tarball
+        id: download
+        run: |
+          RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/${GITHUB_REF##*/}.tar.gz"
+          echo "release_url=$RELEASE_URL" >> $GITHUB_OUTPUT
+          curl -L "$RELEASE_URL" -o release.tar.gz
+
+      - name: Compute SHA256
+        id: sha
+        run: |
+          SHA256=$(shasum -a 256 release.tar.gz | awk '{print $1}')
+          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+
+      - name: Update formula
+        run: |
+          TAG=${GITHUB_REF##*/}
+          URL_LINE="url \"https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/$TAG.tar.gz\""
+          SHA_LINE="sha256 \"${{ steps.sha.outputs.sha256 }}\""
+          echo "⏳ Updating Homebrew Formula file..."
+          sed -i'' -e "s|^  url .*$|  $URL_LINE|" Formula/app-hound.rb
+          sed -i'' -e "s|^  sha256 .*$|  $SHA_LINE|" Formula/app-hound.rb
+          echo "---------------- Formula Diff ----------------"
+          git --no-pager diff Formula/app-hound.rb
+          echo "------------------------------------------------"
+
+      # Instead of committing/pushing, just output
+      - name: Debug (do NOT commit/push)
+        run: |
+          echo "Skipping commit/push for debug mode"
+          git status -- Formula/app-hound.rb
