@@ -1,4 +1,4 @@
-name: Update Homebrew Formula
+name: Update Homebrew Formula (Signed Commit PR, Custom PAT)
 
 on:
   release:
@@ -11,7 +11,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.AH_PAT_STRONG }}
 
       - name: Set up python (for shasum)
         uses: actions/setup-python@v5
@@ -31,20 +31,48 @@ jobs:
           SHA256=$(shasum -a 256 release.tar.gz | awk '{print $1}')
           echo "sha256=$SHA256" >> $GITHUB_OUTPUT
 
-      - name: Update formula
+      - name: Import GPG key (no passphrase)
+        run: echo "${GPG_PRIVATE_KEY}" | gpg --batch --import
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+
+      - name: Configure git for signed commits
+        run: |
+          KEY_ID=$(gpg --list-secret-keys --keyid-format=long | grep '^sec' | awk '{print $2}' | awk -F'/' '{print $2}')
+          git config --global user.name 'GitHub Actions Bot'
+          git config --global user.email 'r.khanduri+github.actions.bot@nimbus-tech.de' # your registered GPG/GitHub identity
+          git config --global user.signingkey $KEY_ID
+          git config --global commit.gpgsign true
+          git config --global gpg.program gpg
+
+      - name: Update formula and show diff
         run: |
           TAG=${GITHUB_REF##*/}
           URL_LINE="url \"https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/$TAG.tar.gz\""
           SHA_LINE="sha256 \"${{ steps.sha.outputs.sha256 }}\""
-          echo "⏳ Updating Homebrew Formula file..."
           sed -i'' -e "s|^  url .*$|  $URL_LINE|" Formula/app-hound.rb
           sed -i'' -e "s|^  sha256 .*$|  $SHA_LINE|" Formula/app-hound.rb
           echo "---------------- Formula Diff ----------------"
           git --no-pager diff Formula/app-hound.rb
           echo "------------------------------------------------"
 
-      # Instead of committing/pushing, just output
-      - name: Debug (do NOT commit/push)
+      - name: Create PR branch and signed commit
+        env:
+          AH_PAT_STRONG: ${{ secrets.AH_PAT_STRONG }}
         run: |
-          echo "Skipping commit/push for debug mode"
-          git status -- Formula/app-hound.rb
+          BRANCH="homebrew-bump-${GITHUB_REF##*/}"
+          git checkout -b "$BRANCH"
+          git add Formula/app-hound.rb
+          git commit -S -m "Update Homebrew formula for $TAG"
+          git log --show-signature -1
+          git push https://x-access-token:${AH_PAT_STRONG}@github.com/${GITHUB_REPOSITORY} "$BRANCH"
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.AH_PAT_STRONG }}
+          branch: homebrew-bump-${{ github.ref_name }}
+          title: "Update Homebrew formula for ${{ github.ref_name }}"
+          body: |
+            Automated PR to update url/sha256 for release `${{ github.ref_name }}` with **GPG-signed commit**.
+          base: main
