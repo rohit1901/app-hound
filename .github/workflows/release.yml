@@ -41,6 +41,7 @@ jobs:
           poetry version ${{ github.event.inputs.version }}
           git add pyproject.toml
           git commit -S -m "Bump: version ${{ github.event.inputs.version }}"
+          git log --show-signature -1   # Debug output
 
       - name: Push version bump
         env:
