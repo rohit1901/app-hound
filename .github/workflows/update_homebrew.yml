@@ -12,14 +12,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.AH_PAT_STRONG }}
-          fetch-depth: 0 # Full history; needed for new branches and PR
+          fetch-depth: 0
           ref: main
-
-      - name: Full fetch and sync remote branches
-        run: |
-          git fetch --all
-          git checkout main
-          git pull origin main
 
       - name: Set up python (for shasum)
         uses: actions/setup-python@v5
@@ -63,17 +57,9 @@ jobs:
           echo "---------------- Formula Diff ----------------"
           git --no-pager diff Formula/app-hound.rb
           echo "------------------------------------------------"
-
-      - name: Create PR branch and signed commit
-        env:
-          AH_PAT_STRONG: ${{ secrets.AH_PAT_STRONG }}
-        run: |
-          BRANCH="homebrew-bump-${GITHUB_REF##*/}"
-          git checkout -b "$BRANCH" main
           git add Formula/app-hound.rb
           git commit -S -m "Update Homebrew formula for $TAG"
           git log --show-signature -1
-          git push https://x-access-token:${AH_PAT_STRONG}@github.com/${GITHUB_REPOSITORY} "$BRANCH"
 
       - name: Create Pull Request (signed commit)
         uses: peter-evans/create-pull-request@v7
