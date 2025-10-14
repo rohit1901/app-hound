@@ -12,6 +12,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.AH_PAT_STRONG }}
+          fetch-depth: 0
+          ref: main
 
       - name: Set up python (for shasum)
         uses: actions/setup-python@v5
@@ -60,6 +62,7 @@ jobs:
         env:
           AH_PAT_STRONG: ${{ secrets.AH_PAT_STRONG }}
         run: |
+          git switch main
           BRANCH="homebrew-bump-${GITHUB_REF##*/}"
           git checkout -b "$BRANCH"
           git add Formula/app-hound.rb
@@ -76,3 +79,6 @@ jobs:
           body: |
             Automated PR to update url/sha256 for release `${{ github.ref_name }}` with **GPG-signed commit**.
           base: main
+          sign-commits: true
+          committer: GitHub Actions Bot <r.khanduri+github.actions.bot@nimbus-tech.de>
+          author: GitHub Actions Bot <r.khanduri+github.actions.bot@nimbus-tech.de>
