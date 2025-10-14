@@ -28,3 +28,6 @@ dev = [
 
 [tool.poetry.scripts]
 app-hound = "app_hound.main:main"
+
+[tool.poetry.requires-plugins]
+poetry-plugin-export = ">=1.8"

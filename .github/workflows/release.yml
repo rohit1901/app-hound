@@ -56,7 +56,9 @@ jobs:
           git push https://x-access-token:${{ secrets.AH_PAT_STRONG }}@github.com/${{ github.repository }} HEAD:${{ github.ref_name }}
 
       - name: Build distribution (sdist and wheel)
-        run: poetry build
+        run: |
+          poetry export -f requirements.txt --output requirements.txt --without-hashes
+          poetry build
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
