@@ -182,3 +182,6 @@ cython_debug/
 
 # OS
 .DS_Store
+
+# Scratch
+.scratch.txt

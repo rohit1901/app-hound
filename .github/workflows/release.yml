@@ -22,19 +22,31 @@ jobs:
         with:
           version: "2.0.0"
 
-      - name: Set Git user
+      - name: Import GPG key (no passphrase)
+        run: echo "${GPG_PRIVATE_KEY}" | gpg --batch --import
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+
+      - name: Configure Git for signed commits
         run: |
+          KEY_ID=$(gpg --list-secret-keys --keyid-format=long | grep '^sec' | awk '{print $2}' | awk -F'/' '{print $2}')
           git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git config --global user.email 'github.bot@nimbus-tech.de'
+          git config --global user.signingkey $KEY_ID
+          git config --global commit.gpgsign true
+          git config --global gpg.program gpg
 
       - name: Bump version
         run: |
           poetry version ${{ github.event.inputs.version }}
           git add pyproject.toml
-          git commit -m "Bump: version ${{ github.event.inputs.version }}"
+          git commit -S -m "Bump: version ${{ github.event.inputs.version }}"
 
       - name: Push version bump
-        run: git push https://x-access-token:${{ secrets.GH_PAT_STRONG }}@github.com/${{ github.repository }} HEAD:${{ github.ref_name }}
+        env:
+          AH_PAT_STRONG: ${{ secrets.AH_PAT_STRONG }}
+        run: |
+          git push https://x-access-token:${{ secrets.AH_PAT_STRONG }}@github.com/${{ github.repository }} HEAD:${{ github.ref_name }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
