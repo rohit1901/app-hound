@@ -31,7 +31,7 @@ jobs:
         run: |
           KEY_ID=$(gpg --list-secret-keys --keyid-format=long | grep '^sec' | awk '{print $2}' | awk -F'/' '{print $2}')
           git config --global user.name 'GitHub Actions Bot'
-          git config --global user.email 'github.bot@nimbus-tech.de'
+          git config --global user.email 'r.khanduri+github.actions.bot@nimbus-tech.de'
           git config --global user.signingkey $KEY_ID
           git config --global commit.gpgsign true
           git config --global gpg.program gpg
