@@ -36,12 +36,17 @@ jobs:
           git config --global commit.gpgsign true
           git config --global gpg.program gpg
 
-      - name: Bump version
+      - name: Bump version and sign commit
         run: |
           poetry version ${{ github.event.inputs.version }}
           git add pyproject.toml
           git commit -S -m "Bump: version ${{ github.event.inputs.version }}"
           git log --show-signature -1   # Debug output
+
+      - name: Update local main from remote
+        run: |
+          git fetch origin main
+          git rebase origin/main
 
       - name: Push version bump
         env:
