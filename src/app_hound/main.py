@@ -2,11 +2,14 @@ from pathlib import Path
 import argparse
 import csv
 
+from typing import Any
+
 from app_hound.finder import (
     run_installer,
     load_apps_from_json,
     gather_app_entries,
 )
+from app_hound.types import AppConfigEntry, AppsConfig
 
 APP_HOUND_HOME = Path.home() / ".app-hound"
 APP_CONFIG_NAME = "apps_config.json"
@@ -23,7 +26,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser(
         description="🐶 app-hound fetches top-level app files and folders for audit!"
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "-i",
         "--input",
         type=str,
@@ -31,7 +34,7 @@ def parse_arguments():
         default=str(Path.cwd()),
         required=True,
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "-o",
         "--output",
         type=str,
@@ -67,7 +70,7 @@ def validate_config_path(config_path: Path):
         exit(1)
 
 
-def process_app_entries(app: dict) -> list:
+def process_app_entries(app: AppConfigEntry) -> list[tuple[str, str, bool, str]]:
     """
     Install app (if installation_path exists), then gather and return app folders/files.
 
@@ -79,16 +82,16 @@ def process_app_entries(app: dict) -> list:
     """
     name = app.get("name")
     additional_locations = app.get("additional_locations", [])
-    installer = app.get("installation_path")
+    installer: Any | None = app.get("installation_path")  # pyright: ignore[reportExplicitAny]
 
-    if installer:
-        run_installer(installer)
+    if installer and isinstance(installer, str):
+        _ = run_installer(installer)
 
     files_found = gather_app_entries(name, additional_locations)
     return files_found
 
 
-def collect_audit_results(apps: list) -> list:
+def collect_audit_results(apps: AppsConfig) -> list[tuple[str, str, bool, str]]:
     """
     Collect audit results from a list of apps.
 
@@ -98,13 +101,13 @@ def collect_audit_results(apps: list) -> list:
     Returns:
         list: Combined list of app entries for audit.
     """
-    all_results = []
-    for app in apps:
+    all_results: list[tuple[str, str, bool, str]] = []
+    for app in apps["apps"]:
         all_results.extend(process_app_entries(app))
     return all_results
 
 
-def write_audit_csv(results: list, output_csv: Path):
+def write_audit_csv(results: list[tuple[str, str, bool, str]], output_csv: Path):
     """
     Write audit results to a CSV file.
 
@@ -125,9 +128,9 @@ def main():
     """
     Main entry point for app-hound: parses args, validates config, collects results, writes audit report.
     """
-    args = parse_arguments()
-    input_path = Path(args.input) / APP_CONFIG_NAME
-    output_path = Path(args.output)
+    args: argparse.Namespace = parse_arguments()
+    input_path = Path(args.input) / APP_CONFIG_NAME  # pyright: ignore[reportAny]
+    output_path = Path(args.output)  # pyright: ignore[reportAny]
 
     ensure_directories_exist(AUDIT_DIR)
     validate_config_path(input_path)

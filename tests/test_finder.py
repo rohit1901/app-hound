@@ -1,7 +1,7 @@
-import tempfile
 import json
-import os
 from pathlib import Path
+from _pytest.capture import CaptureFixture
+from _pytest.monkeypatch import MonkeyPatch
 import pytest
 
 from app_hound.finder import (
@@ -11,6 +11,7 @@ from app_hound.finder import (
     gather_app_entries,
     export_multiple_apps_files,
 )
+from app_hound.types import AppsConfig
 
 
 @pytest.mark.parametrize(
@@ -21,42 +22,42 @@ from app_hound.finder import (
         (".app", 1),
     ],
 )
-def test_run_installer_not_found(tmp_path, installer_suffix, expected):
+def test_run_installer_not_found(tmp_path: Path, installer_suffix: str, expected: int):
     fake_installer = tmp_path / f"missing{installer_suffix}"
     code = run_installer(str(fake_installer))
     assert code == expected
 
 
-def test_run_installer_dmg(tmp_path):
+def test_run_installer_dmg(tmp_path: Path):
     f = tmp_path / "foo.dmg"
-    f.write_text("dummy")
+    _ = f.write_text("dummy")
     code = run_installer(str(f))
     assert code == 2
 
 
-def test_run_installer_app(monkeypatch, tmp_path):
+def test_run_installer_app(monkeypatch: MonkeyPatch, tmp_path: Path):
     app_dir = tmp_path / "TestApp.app"
     app_dir.mkdir()
-    monkeypatch.setattr("subprocess.call", lambda args: 0)
+    _ = monkeypatch.setattr("subprocess.call", lambda args: 0)  # pyright: ignore [reportUnknownLambdaType]
     assert run_installer(str(app_dir)) == 0
 
 
-def test_run_installer_pkg(monkeypatch, tmp_path):
+def test_run_installer_pkg(monkeypatch: MonkeyPatch, tmp_path: Path):
     pkg = tmp_path / "foo.pkg"
-    pkg.write_text("hi")
-    monkeypatch.setattr("subprocess.call", lambda args: 0)
+    _ = pkg.write_text("hi")
+    _ = monkeypatch.setattr("subprocess.call", lambda args: 0)  # pyright: ignore [reportUnknownLambdaType, reportUnknownArgumentType]
     assert run_installer(str(pkg)) == 0
 
 
-def test_load_apps_from_json(tmp_path):
+def test_load_apps_from_json(tmp_path: Path):
     config_path = tmp_path / "apps_config.json"
     data = {
         "apps": [{"name": "Foo", "additional_locations": [str(tmp_path / "extra")]}]
     }
-    config_path.write_text(json.dumps(data))
+    _ = config_path.write_text(json.dumps(data))
     result = load_apps_from_json(str(config_path))
-    assert isinstance(result, list)
-    assert result[0]["name"] == "Foo"
+    first_app = result["apps"][0]
+    assert first_app["name"] == "Foo"
 
 
 def test_get_default_locations():
@@ -65,7 +66,7 @@ def test_get_default_locations():
     assert any(loc.startswith(str(Path.home())) for loc in locs)
 
 
-def test_gather_app_entries_top_level_dir(tmp_path, capsys):
+def test_gather_app_entries_top_level_dir(tmp_path: Path, capsys: CaptureFixture[str]):
     dir1 = tmp_path / "TestApp"
     dir1.mkdir()
     entries = gather_app_entries("TestApp", [str(dir1)])
@@ -76,16 +77,16 @@ def test_gather_app_entries_top_level_dir(tmp_path, capsys):
     assert not any("not found" in e for e in captured.out.splitlines())
 
 
-def test_gather_app_entries_top_level_file(tmp_path, capsys):
+def test_gather_app_entries_top_level_file(tmp_path: Path, capsys: CaptureFixture[str]):
     myfile = tmp_path / "TestApp.plist"
-    myfile.write_text("data")
+    _ = myfile.write_text("data")
     entries = gather_app_entries("TestApp", [str(myfile)])
     assert any(e[1] == str(myfile) and e[2] is False for e in entries)
     captured = capsys.readouterr()
     assert "app-hound fetches" in captured.out
 
 
-def test_gather_app_entries_case_insensitive(tmp_path):
+def test_gather_app_entries_case_insensitive(tmp_path: Path):
     # Try mixed case app name
     topdir = tmp_path / "TestApp"
     topdir.mkdir()
@@ -93,7 +94,9 @@ def test_gather_app_entries_case_insensitive(tmp_path):
     assert any(e[1] == str(topdir) for e in entries)
 
 
-def test_gather_app_entries_additional_console(tmp_path, capsys):
+def test_gather_app_entries_additional_console(
+    tmp_path: Path, capsys: CaptureFixture[str]
+):
     extra = tmp_path / "ExtraLocation"
     entries = gather_app_entries("ExtraLocation", [str(extra)])
     captured = capsys.readouterr()
@@ -107,15 +110,17 @@ def test_gather_app_entries_additional_console(tmp_path, capsys):
     assert "Bingo! Found!" in captured.out
 
 
-def test_export_multiple_apps_files_csv_structure(tmp_path):
+def test_export_multiple_apps_files_csv_structure(tmp_path: Path):
     app1dir = tmp_path / "A1"
     app1dir.mkdir()
     app2file = tmp_path / "B2.app"
-    app2file.write_text("dummy")
-    config = [
-        {"name": "A1", "additional_locations": [str(app1dir)]},
-        {"name": "B2", "additional_locations": [str(app2file)]},
-    ]
+    _ = app2file.write_text("dummy")
+    config: AppsConfig = {
+        "apps": [
+            {"name": "A1", "additional_locations": [str(app1dir)]},
+            {"name": "B2", "additional_locations": [str(app2file)]},
+        ]
+    }
     outcsv = tmp_path / "final.csv"
     export_multiple_apps_files(config, str(outcsv), verbose=False)
     lines = outcsv.read_text().splitlines()
@@ -137,7 +142,7 @@ def test_export_multiple_apps_files_csv_structure(tmp_path):
     )
 
 
-def test_find_all_matches_in_home(tmp_path, monkeypatch):
+def test_find_all_matches_in_home(tmp_path: Path, monkeypatch: MonkeyPatch):
     # Mock user's home dir structure
     app_name = "TestApp"
     # Create mock home layout:
@@ -147,11 +152,11 @@ def test_find_all_matches_in_home(tmp_path, monkeypatch):
     home = tmp_path / "fakehome"
     home.mkdir()
     (home / "TestApp").mkdir()
-    (home / "TestApp" / "abc.txt").write_text("data")
-    (home / "Work").mkdir()
-    (home / "Work" / "TestAppFile.pdf").write_text("pdfdata")
-    (home / "Stuff").mkdir()
-    (home / "Stuff" / "Other.txt").write_text("irrelevant")
+    _ = (home / "TestApp" / "abc.txt").write_text("data")
+    _ = (home / "Work").mkdir()
+    _ = (home / "Work" / "TestAppFile.pdf").write_text("pdfdata")
+    _ = (home / "Stuff").mkdir()
+    _ = (home / "Stuff" / "Other.txt").write_text("irrelevant")
     # Patch Path.home() to return our fake home
     monkeypatch.setattr("pathlib.Path.home", lambda: home)
     # Import or define your function (as previously suggested)

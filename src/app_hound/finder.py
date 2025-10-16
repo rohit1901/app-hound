@@ -1,10 +1,12 @@
 import json
 import subprocess
 from pathlib import Path
-from typing import List, Dict, Tuple
 import csv
 import re
 from rich.console import Console
+from app_hound.types import AppsConfig, is_apps_config
+from typing import Any
+
 
 console = Console()
 
@@ -39,7 +41,7 @@ def run_installer(installer_path: str) -> int:
         return subprocess.call([str(path)])
 
 
-def load_apps_from_json(json_path: str) -> List[Dict]:
+def load_apps_from_json(json_path: str) -> AppsConfig:
     """
     Loads app definitions from a JSON configuration file.
 
@@ -49,11 +51,19 @@ def load_apps_from_json(json_path: str) -> List[Dict]:
         List[Dict]: List of apps.
     """
     with open(json_path, "r") as f:
-        config = json.load(f)
-    return config.get("apps", [])
+        raw_data: Any = json.load(f)  # pyright: ignore[reportExplicitAny, reportAny]
+
+        if not is_apps_config(raw_data):
+            raise ValueError("Invalid apps configuration")
+
+        config: AppsConfig = raw_data
+        if not config.get("apps"):
+            raise ValueError("Invalid apps configuration")
+
+        return config
 
 
-def get_default_locations(app_name: str) -> List[str]:
+def get_default_locations(app_name: str) -> list[str]:
     """
     Returns default macOS locations where app data is commonly stored.
     """
@@ -69,7 +79,7 @@ def get_default_locations(app_name: str) -> List[str]:
     ]
 
 
-def find_all_matches_in_home(app_name: str) -> List[str]:
+def find_all_matches_in_home(app_name: str) -> list[str]:
     """
     Recursively searches the current user's home directory for any file or folder whose
     name contains the app name (case-insensitive).
@@ -82,7 +92,7 @@ def find_all_matches_in_home(app_name: str) -> List[str]:
     """
     user_home = Path.home()
     pattern = re.compile(re.escape(app_name), re.IGNORECASE)
-    matches = []
+    matches: list[str] = []
     for path in user_home.rglob("*"):
         # Only match actual file/folder names
         if pattern.search(path.name):
@@ -91,8 +101,8 @@ def find_all_matches_in_home(app_name: str) -> List[str]:
 
 
 def gather_app_entries(
-    app_name: str, additional_locations: List[str] = None
-) -> List[Tuple[str, str, bool, str]]:
+    app_name: str, additional_locations: list[str] | None = None
+) -> list[tuple[str, str, bool, str]]:
     """
     Searches default macOS and additional locations for top-level folders/files
     whose name contains the app name. Playful 'app-hound' themed console messages.
@@ -101,27 +111,24 @@ def gather_app_entries(
     Returns:
         List[Tuple[str, str, bool, str]]: (app_name, base path, is_folder(bool), file/folder name or 'none')
     """
-    # search_paths = get_default_locations(app_name)
     search_paths = find_all_matches_in_home(app_name)
     if additional_locations:
         search_paths.extend(additional_locations)
     pattern = re.compile(re.escape(app_name.lower()), re.IGNORECASE)
 
-    entries = []
-    # Playful messaging for additional paths
+    entries: list[tuple[str, str, bool, str]] = []
     if additional_locations:
         console.rule(
             f"[bold magenta]🐶 app-hound sniffs extra spots for '{app_name}'![/bold magenta]"
         )
-        for i, add_path in enumerate(additional_locations, 1):
+        for _, add_path in enumerate(additional_locations, 1):
             path = Path(add_path).expanduser()
             status = "found" if path.exists() else "not found"
             msg = (
                 f"🐶 app-hound checks custom path: [bold yellow]{path}[/bold yellow]... "
-                f"[green]Bingo! Found![/green]"
-                if status == "found"
-                else f"🐶 app-hound checks custom path: [bold yellow]{path}[/bold yellow]... [red]No scent detected![/red]"
+                f"{'[green]Bingo! Found![/green]' if status == 'found' else '[red]No scent detected![/red]'}"
             )
+
             console.print(msg)
     # Auditing only found matches
     for raw_path in search_paths:
@@ -143,7 +150,9 @@ def gather_app_entries(
 
 
 def export_multiple_apps_files(
-    apps_config: List[Dict], csv_filepath: str, verbose: bool = True
+    apps_config: AppsConfig,
+    csv_filepath: str,
+    verbose: bool = True,
 ) -> None:
     """
     Exports all top-level folders and files related to all apps in config to a CSV.
@@ -154,9 +163,9 @@ def export_multiple_apps_files(
 
     Writes columns: App Name, Base Path, Folder, File name
     """
-    all_entries = []
-    for app in apps_config:
-        name = app.get("name")
+    all_entries: list[tuple[str, str, bool, str]] = []
+    for app in apps_config["apps"]:
+        name: str | None = app.get("name")
         additional_locations = app.get("additional_locations", [])
         if verbose:
             console.rule(

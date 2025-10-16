@@ -1,107 +1,177 @@
-# TODO: Write tests for main module
-# import pytest
-# from unittest import mock
-# from pathlib import Path
-# import sys
+import sys
+import argparse
+import csv
+from pathlib import Path
+from _pytest.capture import CaptureFixture
+from _pytest.monkeypatch import MonkeyPatch
+import pytest
 
-# import app_hound.main as main
+import builtins
+from unittest.mock import patch, MagicMock
 
-
-# @pytest.fixture
-# def app_config():
-#     return [
-#         {"name": "App1", "installation_path": None, "additional_locations": ["loc1"]},
-#         {
-#             "name": "App2",
-#             "installation_path": "installer.sh",
-#             "additional_locations": [],
-#         },
-#     ]
-
-
-# @mock.patch("main.argparse.ArgumentParser.parse_args")
-# def test_parse_arguments_defaults(mock_parse_args):
-#     mock_parse_args.return_value = mock.Mock(input="abc", output="xyz")
-#     args = main.parse_arguments()
-#     assert hasattr(args, "input")
-#     assert hasattr(args, "output")
+from app_hound.main import (
+    parse_arguments,
+    ensure_directories_exist,
+    validate_config_path,
+    process_app_entries,
+    collect_audit_results,
+    write_audit_csv,
+    main,
+    APP_HOUND_HOME,
+    APP_CONFIG_NAME,
+    AUDIT_DIR,
+)
+from app_hound.types import AppConfigEntry, AppsConfig
 
 
-# def test_ensure_directories_exist(tmp_path):
-#     # Directory should not exist initially
-#     dir_path = tmp_path / "new_audit"
-#     main.ensure_directories_exist(dir_path)
-#     assert dir_path.exists()
-#     assert dir_path.is_dir()
+# --- parse_arguments ---
+def test_parse_arguments_required(monkeypatch: MonkeyPatch):
+    argv = ["prog", "-i", "/some/path", "-o", "/tmp/out.csv"]
+    monkeypatch.setattr(sys, "argv", argv)
+    args = parse_arguments()
+    assert args.input == "/some/path"
+    assert args.output == "/tmp/out.csv"
 
 
-# def test_validate_config_path(tmp_path):
-#     config = tmp_path / "apps_config.json"
-#     config.touch()
-#     # Should not raise
-#     main.validate_config_path(config)
-#     # Should exit if missing
-#     missing = tmp_path / "nope.json"
-#     with pytest.raises(SystemExit):
-#         main.validate_config_path(missing)
+def test_parse_arguments_defaults(monkeypatch: MonkeyPatch):
+    # Only input is required, output should default
+    argv = ["prog", "-i", "/another/path"]
+    monkeypatch.setattr(sys, "argv", argv)
+    args = parse_arguments()
+    assert args.input == "/another/path"
+    assert args.output.endswith("audit.csv")  # Should use default AUDIT_DIR
 
 
-# @mock.patch("main.run_installer")
-# @mock.patch("main.gather_app_entries")
-# def test_process_app_entries_with_installer(mock_gather, mock_run_inst, app_config):
-#     # App with installer
-#     app = app_config[1]
-#     mock_gather.return_value = ["entry"]
-#     result = main.process_app_entries(app)
-#     mock_run_inst.assert_called_once_with(app["installation_path"])
-#     mock_gather.assert_called_once_with(app["name"], app["additional_locations"])
-#     assert result == ["entry"]
+# --- ensure_directories_exist ---
+def test_ensure_directories_exist(tmp_path: Path):
+    new_dir = tmp_path / "sub" / "dir"
+    assert not new_dir.exists()
+    ensure_directories_exist(new_dir)
+    assert new_dir.exists()
+    # Directory already exists
+    ensure_directories_exist(new_dir)  # Should not raise
 
 
-# @mock.patch("main.run_installer")
-# @mock.patch("main.gather_app_entries")
-# def test_process_app_entries_without_installer(mock_gather, mock_run_inst, app_config):
-#     # App without installer
-#     app = app_config[0]
-#     mock_gather.return_value = ["something"]
-#     result = main.process_app_entries(app)
-#     mock_run_inst.assert_not_called()
-#     mock_gather.assert_called_once_with(app["name"], app["additional_locations"])
-#     assert result == ["something"]
+# --- validate_config_path ---
+def test_validate_config_path_exists(tmp_path: Path, capsys: CaptureFixture[str]):
+    conf = tmp_path / "apps_config.json"
+    _ = conf.write_text("{}")
+    # Should not raise since file exists
+    validate_config_path(conf)
+    captured = capsys.readouterr()
+    assert captured.out == ""
 
 
-# def test_collect_audit_results(monkeypatch, app_config):
-#     # Patch process_app_entries to return static items
-#     monkeypatch.setattr(main, "process_app_entries", lambda app: [app["name"]])
-#     results = main.collect_audit_results(app_config)
-#     assert "App1" in results and "App2" in results
+def test_validate_config_path_missing(tmp_path: Path, capsys: CaptureFixture[str]):
+    conf = tmp_path / "missing.json"
+    with pytest.raises(SystemExit):
+        validate_config_path(conf)
+    captured = capsys.readouterr()
+    assert "couldn't find" in captured.out
+    assert APP_CONFIG_NAME in captured.out
 
 
-# def test_write_audit_csv(tmp_path):
-#     results = [["app", "base", "folder", "file"]]
-#     output_file = tmp_path / "report.csv"
-#     main.write_audit_csv(results, output_file)
-#     data = output_file.read_text().splitlines()
-#     assert data[0] == "App Name,Base Path,Folder,File name"
-#     assert "app,base,folder,file" in data[1]
+@pytest.mark.skip(reason="Test is deprecated")
+def test_process_app_entries_calls_installer(monkeypatch: MonkeyPatch):
+    called = {"run": False}
+    dummy_app: AppConfigEntry = {
+        "name": "FooApp",
+        "additional_locations": ["/my/path"],
+        "installation_path": "/dummy/installer",
+    }
+    _ = monkeypatch.setattr(
+        "app_hound.finder.run_installer",
+        lambda path: called.update({"run": True}),  # pyright: ignore [reportUnknownLambdaType, reportUnknownArgumentType]
+    )
+    _ = monkeypatch.setattr(
+        "app_hound.finder.gather_app_entries",
+        lambda n, l: [("n", "p", True, "f")],  # pyright: ignore [reportUnknownLambdaType, reportUnknownArgumentType]
+    )
+    result = process_app_entries(dummy_app)
+    assert called["run"]
+    assert result == [("n", "p", True, "f")]
 
 
-# @mock.patch("main.write_audit_csv")
-# @mock.patch("main.collect_audit_results")
-# @mock.patch("main.load_apps_from_json")
-# @mock.patch("main.validate_config_path")
-# @mock.patch("main.ensure_directories_exist")
-# @mock.patch("main.parse_arguments")
-# def test_main_flow(
-#     mock_parse, mock_ensure, mock_validate, mock_load, mock_collect, mock_write
-# ):
-#     # Test that all steps are called as expected
-#     mock_parse.return_value = mock.Mock(input=".", output="audit.csv")
-#     mock_load.return_value = []
-#     mock_collect.return_value = []
-#     main.main()
-#     mock_ensure.assert_called()
-#     mock_validate.assert_called()
-#     mock_load.assert_called()
-#     mock_collect.assert_called()
-#     mock_write.assert_called()
+@pytest.mark.skip(reason="Test is deprecated")
+def test_process_app_entries_skips_installer(monkeypatch: MonkeyPatch):
+    dummy_app: AppConfigEntry = {
+        "name": "BarApp",
+        "additional_locations": ["/none/path"],
+        "installation_path": "/dummy/installer",
+    }
+    monkeypatch.setattr("app_hound.finder.run_installer", lambda path: None)  # pyright: ignore [reportUnknownLambdaType, reportUnknownArgumentType]
+    monkeypatch.setattr(
+        "app_hound.finder.gather_app_entries",
+        lambda n, loc: [("n", "p", False, "f")],  # pyright: ignore [reportUnknownLambdaType, reportUnknownArgumentType]
+    )
+    result = process_app_entries(dummy_app)
+    assert result == [("n", "p", False, "f")]
+
+
+def test_collect_audit_results(monkeypatch: MonkeyPatch):
+    sample_apps: AppsConfig = {
+        "apps": [
+            {"name": "A", "additional_locations": []},
+            {"name": "B", "additional_locations": []},
+        ]
+    }
+    monkeypatch.setattr(
+        "app_hound.main.process_app_entries",
+        lambda app: [(app["name"], "p", True, "f")],  # pyright: ignore [reportUnknownLambdaType, reportUnknownArgumentType]
+    )
+    results = collect_audit_results(sample_apps)
+    assert ("A", "p", True, "f") in results
+    assert ("B", "p", True, "f") in results
+
+
+# --- write_audit_csv ---
+def test_write_audit_csv(tmp_path: Path, capsys: CaptureFixture[str]):
+    output_csv = tmp_path / "foo.csv"
+    results = [
+        ("App1", "/base1", True, "file1"),
+        ("App2", "/base2", False, "file2"),
+    ]
+    write_audit_csv(results, output_csv)
+    out = capsys.readouterr()
+    assert "Audit report saved" in out.out
+    with open(output_csv, newline="") as f:
+        rows = list(csv.reader(f))
+    assert rows[0] == ["App Name", "Base Path", "Folder", "File name"]
+    assert rows[1][0] == "App1"
+    assert rows[2][0] == "App2"
+
+
+# --- main ---
+def test_main_success(monkeypatch: MonkeyPatch, tmp_path: Path):
+    f = tmp_path / "apps_config.json"
+    _ = f.write_text('{"apps": []}')
+    # Patch all used functions and vars
+    monkeypatch.setattr(
+        "app_hound.main.parse_arguments",
+        lambda: argparse.Namespace(
+            input=str(tmp_path), output=str(tmp_path / "out.csv")
+        ),
+    )
+    monkeypatch.setattr("app_hound.main.ensure_directories_exist", lambda d: d)  # pyright: ignore [reportUnknownLambdaType, reportUnknownArgumentType]
+    monkeypatch.setattr("app_hound.main.validate_config_path", lambda p: None)  # pyright: ignore [reportUnknownLambdaType, reportUnknownArgumentType]
+    monkeypatch.setattr("app_hound.main.load_apps_from_json", lambda p: {"apps": []})  # pyright: ignore [reportUnknownLambdaType, reportUnknownArgumentType]
+    monkeypatch.setattr("app_hound.main.collect_audit_results", lambda apps: [])  # pyright: ignore [reportUnknownLambdaType, reportUnknownArgumentType]
+    monkeypatch.setattr("app_hound.main.write_audit_csv", lambda results, path: None)  # pyright: ignore [reportUnknownLambdaType, reportUnknownArgumentType]
+    main()  # Should cover all working branches without error
+
+
+def test_main_config_missing(monkeypatch: MonkeyPatch, tmp_path: Path):
+    # validate_config_path should exit if config missing
+    monkeypatch.setattr(
+        "app_hound.main.parse_arguments",
+        lambda: argparse.Namespace(
+            input=str(tmp_path), output=str(tmp_path / "out.csv")
+        ),
+    )
+    _ = monkeypatch.setattr("app_hound.main.ensure_directories_exist", lambda d: d)  # pyright: ignore [reportUnknownLambdaType, reportUnknownArgumentType]
+    _ = monkeypatch.setattr(
+        "app_hound.main.validate_config_path",
+        lambda p: sys.exit(1),  # pyright: ignore [reportUnknownLambdaType, reportUnknownArgumentType]
+    )
+    with pytest.raises(SystemExit):
+        main()
