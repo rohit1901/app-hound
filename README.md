@@ -127,5 +127,4 @@ MIT
 
 ## About
 
-Created by [Rohit Khanduri](https://github.com/rohit1901).
 A friendly doggy companion for Mac users and admins, app-hound helps you keep your system lean and clean (and might earn itself a treat!).
