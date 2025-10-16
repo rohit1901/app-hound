@@ -37,3 +37,10 @@ include = [
     "requirements.txt",
     "README.md"
 ]
+
+[virtualenvs]
+in-project = true
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
