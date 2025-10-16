@@ -1,75 +1,75 @@
-name: Update Homebrew Formula (Signed Commit PR, Custom PAT)
+# name: Update Homebrew Formula (Signed Commit PR, Custom PAT)
 
-on:
-  release:
-    types: [published]
+# on:
+#   release:
+#     types: [published]
 
-jobs:
-  update-formula:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.AH_PAT_STRONG }}
-          fetch-depth: 0
-          ref: main
+# jobs:
+#   update-formula:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
+#         with:
+#           token: ${{ secrets.AH_PAT_STRONG }}
+#           fetch-depth: 0
+#           ref: main
 
-      - name: Set up python (for shasum)
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
+#       - name: Set up python (for shasum)
+#         uses: actions/setup-python@v5
+#         with:
+#           python-version: "3.13"
 
-      - name: Download release tarball
-        id: download
-        run: |
-          RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/${GITHUB_REF##*/}.tar.gz"
-          echo "release_url=$RELEASE_URL" >> $GITHUB_OUTPUT
-          curl -L "$RELEASE_URL" -o release.tar.gz
+#       - name: Download release tarball
+#         id: download
+#         run: |
+#           RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/${GITHUB_REF##*/}.tar.gz"
+#           echo "release_url=$RELEASE_URL" >> $GITHUB_OUTPUT
+#           curl -L "$RELEASE_URL" -o release.tar.gz
 
-      - name: Compute SHA256
-        id: sha
-        run: |
-          SHA256=$(shasum -a 256 release.tar.gz | awk '{print $1}')
-          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+#       - name: Compute SHA256
+#         id: sha
+#         run: |
+#           SHA256=$(shasum -a 256 release.tar.gz | awk '{print $1}')
+#           echo "sha256=$SHA256" >> $GITHUB_OUTPUT
 
-      - name: Import GPG key (no passphrase)
-        run: echo "${GPG_PRIVATE_KEY}" | gpg --batch --import
-        env:
-          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+#       - name: Import GPG key (no passphrase)
+#         run: echo "${GPG_PRIVATE_KEY}" | gpg --batch --import
+#         env:
+#           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
 
-      - name: Configure git for signed commits
-        run: |
-          KEY_ID=$(gpg --list-secret-keys --keyid-format=long | grep '^sec' | awk '{print $2}' | awk -F'/' '{print $2}')
-          git config --global user.name 'GitHub Actions Bot'
-          git config --global user.email 'r.khanduri+github.actions.bot@nimbus-tech.de'
-          git config --global user.signingkey $KEY_ID
-          git config --global commit.gpgsign true
-          git config --global gpg.program gpg
+#       - name: Configure git for signed commits
+#         run: |
+#           KEY_ID=$(gpg --list-secret-keys --keyid-format=long | grep '^sec' | awk '{print $2}' | awk -F'/' '{print $2}')
+#           git config --global user.name 'GitHub Actions Bot'
+#           git config --global user.email 'r.khanduri+github.actions.bot@nimbus-tech.de'
+#           git config --global user.signingkey $KEY_ID
+#           git config --global commit.gpgsign true
+#           git config --global gpg.program gpg
 
-      - name: Update formula and show diff
-        run: |
-          TAG=${GITHUB_REF##*/}
-          URL_LINE="url \"https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/$TAG.tar.gz\""
-          SHA_LINE="sha256 \"${{ steps.sha.outputs.sha256 }}\""
-          sed -i'' -e "s|^  url .*$|  $URL_LINE|" Formula/app-hound.rb
-          sed -i'' -e "s|^  sha256 .*$|  $SHA_LINE|" Formula/app-hound.rb
-          echo "---------------- Formula Diff ----------------"
-          git --no-pager diff Formula/app-hound.rb
-          echo "------------------------------------------------"
-          git add Formula/app-hound.rb
-          git commit -S -m "Update Homebrew formula for $TAG"
-          git log --show-signature -1
+#       - name: Update formula and show diff
+#         run: |
+#           TAG=${GITHUB_REF##*/}
+#           URL_LINE="url \"https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/$TAG.tar.gz\""
+#           SHA_LINE="sha256 \"${{ steps.sha.outputs.sha256 }}\""
+#           sed -i'' -e "s|^  url .*$|  $URL_LINE|" Formula/app-hound.rb
+#           sed -i'' -e "s|^  sha256 .*$|  $SHA_LINE|" Formula/app-hound.rb
+#           echo "---------------- Formula Diff ----------------"
+#           git --no-pager diff Formula/app-hound.rb
+#           echo "------------------------------------------------"
+#           git add Formula/app-hound.rb
+#           git commit -S -m "Update Homebrew formula for $TAG"
+#           git log --show-signature -1
 
-      - name: Create Pull Request (signed commit)
-        uses: peter-evans/create-pull-request@v7
-        with:
-          token: ${{ secrets.AH_PAT_STRONG }}
-          branch: homebrew-bump-${{ github.ref_name }}
-          title: "Update Homebrew formula for ${{ github.ref_name }}"
-          body: |
-            Automated PR to update url/sha256 for release `${{ github.ref_name }}` with **GPG-signed commit**.
-          base: main
-          sign-commits: true
-          committer: GitHub Actions Bot <r.khanduri+github.actions.bot@nimbus-tech.de>
-          author: GitHub Actions Bot <r.khanduri+github.actions.bot@nimbus-tech.de>
+#       - name: Create Pull Request (signed commit)
+#         uses: peter-evans/create-pull-request@v7
+#         with:
+#           token: ${{ secrets.AH_PAT_STRONG }}
+#           branch: homebrew-bump-${{ github.ref_name }}
+#           title: "Update Homebrew formula for ${{ github.ref_name }}"
+#           body: |
+#             Automated PR to update url/sha256 for release `${{ github.ref_name }}` with **GPG-signed commit**.
+#           base: main
+#           sign-commits: true
+#           committer: GitHub Actions Bot <r.khanduri+github.actions.bot@nimbus-tech.de>
+#           author: GitHub Actions Bot <r.khanduri+github.actions.bot@nimbus-tech.de>
