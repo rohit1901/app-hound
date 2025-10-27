@@ -3,6 +3,7 @@ import argparse
 import csv
 
 from typing import Any
+from typing_extensions import Sequence
 
 from app_hound.finder import (
     run_installer,
@@ -32,7 +33,6 @@ def parse_arguments():
         type=str,
         help="Location of apps_config.json (default: project root)",
         default=str(Path.cwd()),
-        required=True,
     )
     _ = parser.add_argument(
         "-o",

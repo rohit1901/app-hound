@@ -69,11 +69,17 @@ App-hound uses a single config file at the project root.
 
 1. **Run app-hound:**
    ```bash
-   poetry run python main.py
+   poetry run app-hound -i ./
    ```
 2. **Follow prompts:**
    - Enter any installer paths if relevant (app-hound will fetch them for you!).
    - Enter the desired output CSV filename.
+
+## Help
+
+- **app-hound -h**: Display help message.
+- **app-hound -i <path>**: Specify installation path.
+- **app-hound -o <filename>**: Specify output CSV filename.
 
 ***
 
