@@ -1,25 +1,21 @@
-import sys
 import argparse
 import csv
+import sys
 from pathlib import Path
+
+import pytest
 from _pytest.capture import CaptureFixture
 from _pytest.monkeypatch import MonkeyPatch
-import pytest
-
-import builtins
-from unittest.mock import patch, MagicMock
 
 from app_hound.main import (
-    parse_arguments,
-    ensure_directories_exist,
-    validate_config_path,
-    process_app_entries,
-    collect_audit_results,
-    write_audit_csv,
-    main,
-    APP_HOUND_HOME,
     APP_CONFIG_NAME,
-    AUDIT_DIR,
+    collect_audit_results,
+    ensure_directories_exist,
+    main,
+    parse_arguments,
+    process_app_entries,
+    validate_config_path,
+    write_audit_csv,
 )
 from app_hound.types import AppConfigEntry, AppsConfig
 
@@ -31,6 +27,7 @@ def test_parse_arguments_required(monkeypatch: MonkeyPatch):
     args = parse_arguments()
     assert args.input == "/some/path"
     assert args.output == "/tmp/out.csv"
+    assert args.app_name is None
 
 
 def test_parse_arguments_defaults(monkeypatch: MonkeyPatch):
@@ -40,6 +37,16 @@ def test_parse_arguments_defaults(monkeypatch: MonkeyPatch):
     args = parse_arguments()
     assert args.input == "/another/path"
     assert args.output.endswith("audit.csv")  # Should use default AUDIT_DIR
+    assert args.app_name is None
+
+
+def test_parse_arguments_single_app(monkeypatch: MonkeyPatch):
+    argv = ["prog", "-a", "SoloApp"]
+    monkeypatch.setattr(sys, "argv", argv)
+    args = parse_arguments()
+    assert args.app_name == "SoloApp"
+    assert args.input == str(Path.cwd())
+    assert args.output.endswith("audit.csv")
 
 
 # --- ensure_directories_exist ---
@@ -48,8 +55,10 @@ def test_ensure_directories_exist(tmp_path: Path):
     assert not new_dir.exists()
     ensure_directories_exist(new_dir)
     assert new_dir.exists()
-    # Directory already exists
-    ensure_directories_exist(new_dir)  # Should not raise
+    another_dir = tmp_path / "second" / "dir"
+    assert not another_dir.exists()
+    ensure_directories_exist(new_dir, another_dir)
+    assert another_dir.exists()
 
 
 # --- validate_config_path ---
@@ -149,15 +158,54 @@ def test_main_success(monkeypatch: MonkeyPatch, tmp_path: Path):
     monkeypatch.setattr(
         "app_hound.main.parse_arguments",
         lambda: argparse.Namespace(
-            input=str(tmp_path), output=str(tmp_path / "out.csv")
+            input=str(tmp_path), output=str(tmp_path / "out.csv"), app_name=None
         ),
     )
-    monkeypatch.setattr("app_hound.main.ensure_directories_exist", lambda d: d)  # pyright: ignore [reportUnknownLambdaType, reportUnknownArgumentType]
+    monkeypatch.setattr("app_hound.main.ensure_directories_exist", lambda *paths: paths)  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
     monkeypatch.setattr("app_hound.main.validate_config_path", lambda p: None)  # pyright: ignore [reportUnknownLambdaType, reportUnknownArgumentType]
     monkeypatch.setattr("app_hound.main.load_apps_from_json", lambda p: {"apps": []})  # pyright: ignore [reportUnknownLambdaType, reportUnknownArgumentType]
-    monkeypatch.setattr("app_hound.main.collect_audit_results", lambda apps: [])  # pyright: ignore [reportUnknownLambdaType, reportUnknownArgumentType]
-    monkeypatch.setattr("app_hound.main.write_audit_csv", lambda results, path: None)  # pyright: ignore [reportUnknownLambdaType, reportUnknownArgumentType]
+    monkeypatch.setattr("app_hound.main.collect_audit_results", lambda apps: [])  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+    monkeypatch.setattr("app_hound.main.write_audit_csv", lambda results, path: None)  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
     main()  # Should cover all working branches without error
+
+
+def test_main_single_app(monkeypatch: MonkeyPatch, tmp_path: Path):
+    capture = {}
+    monkeypatch.setattr(
+        "app_hound.main.parse_arguments",
+        lambda: argparse.Namespace(
+            input=str(tmp_path),
+            output=str(tmp_path / "out.csv"),
+            app_name="SoloApp",
+        ),
+    )
+    monkeypatch.setattr(
+        "app_hound.main.ensure_directories_exist",
+        lambda *paths: None,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+    )
+    monkeypatch.setattr(
+        "app_hound.main.validate_config_path",
+        lambda _: pytest.fail(
+            "validate_config_path should not be called in single-app mode"
+        ),
+    )
+    monkeypatch.setattr(
+        "app_hound.main.load_apps_from_json",
+        lambda _: pytest.fail(
+            "load_apps_from_json should not be called in single-app mode"
+        ),
+    )
+    monkeypatch.setattr(
+        "app_hound.main.collect_audit_results",
+        lambda apps: [("SoloApp", "/fetch/path", True, "none")],  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+    )
+    monkeypatch.setattr(
+        "app_hound.main.write_audit_csv",
+        lambda results, path: capture.update({"results": results, "path": path}),  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+    )
+    main()
+    assert capture["results"][0][0] == "SoloApp"
+    assert capture["path"] == tmp_path / "out.csv"
 
 
 def test_main_config_missing(monkeypatch: MonkeyPatch, tmp_path: Path):
@@ -165,13 +213,15 @@ def test_main_config_missing(monkeypatch: MonkeyPatch, tmp_path: Path):
     monkeypatch.setattr(
         "app_hound.main.parse_arguments",
         lambda: argparse.Namespace(
-            input=str(tmp_path), output=str(tmp_path / "out.csv")
+            input=str(tmp_path), output=str(tmp_path / "out.csv"), app_name=None
         ),
     )
-    _ = monkeypatch.setattr("app_hound.main.ensure_directories_exist", lambda d: d)  # pyright: ignore [reportUnknownLambdaType, reportUnknownArgumentType]
+    _ = monkeypatch.setattr(
+        "app_hound.main.ensure_directories_exist", lambda *paths: paths
+    )  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
     _ = monkeypatch.setattr(
         "app_hound.main.validate_config_path",
-        lambda p: sys.exit(1),  # pyright: ignore [reportUnknownLambdaType, reportUnknownArgumentType]
+        lambda p: sys.exit(1),  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
     )
     with pytest.raises(SystemExit):
         main()

@@ -71,6 +71,10 @@ App-hound uses a single config file at the project root.
    ```bash
    poetry run app-hound -i ./
    ```
+   Or sniff a single app without a config file:
+   ```bash
+   poetry run app-hound -a "Slack"
+   ```
 2. **Follow prompts:**
    - Enter any installer paths if relevant (app-hound will fetch them for you!).
    - Enter the desired output CSV filename.
@@ -78,8 +82,9 @@ App-hound uses a single config file at the project root.
 ## Help
 
 - **app-hound -h**: Display help message.
-- **app-hound -i <path>**: Specify installation path.
+- **app-hound -i <path>**: Specify the directory containing apps_config.json.
 - **app-hound -o <filename>**: Specify output CSV filename.
+- **app-hound -a "<app name>"**: Audit a single application without using apps_config.json.
 
 ***
 

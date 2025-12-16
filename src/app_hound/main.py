@@ -1,14 +1,12 @@
-from pathlib import Path
 import argparse
 import csv
-
+from pathlib import Path
 from typing import Any
-from typing_extensions import Sequence
 
 from app_hound.finder import (
-    run_installer,
-    load_apps_from_json,
     gather_app_entries,
+    load_apps_from_json,
+    run_installer,
 )
 from app_hound.types import AppConfigEntry, AppsConfig
 
@@ -25,33 +23,58 @@ def parse_arguments():
         argparse.Namespace: Parsed command-line arguments.
     """
     parser = argparse.ArgumentParser(
-        description="🐶 app-hound fetches top-level app files and folders for audit!"
+        prog="app-hound",
+        formatter_class=argparse.RawTextHelpFormatter,
+        description=(
+            "\033[1;36m╭──────────────────────────────────────────────╮\033[0m\n"
+            "\033[1;36m│ 🐶  app-hound: Snout & About Audit Parade!   │\033[0m\n"
+            "\033[1;36m╰──────────────────────────────────────────────╯\033[0m\n"
+            "  \033[1;33m•\033[0m Fetch top-level pawprints without clutter.\n"
+            "  \033[1;33m•\033[0m Sweep away stubborn leftovers with confidence.\n"
+            "  \033[1;33m•\033[0m Spotlight a VIP app with --app-name or bring the whole pack.\n"
+        ),
+        epilog=(
+            "\033[1;35mPro tip:\033[0m Pair with \033[1m--output\033[0m to stash reports in your favorite den.\n"
+            "Give app-hound a pat with ⭐️ if it keeps your Mac tidy!"
+        ),
     )
-    _ = parser.add_argument(
+    sniff_group = parser.add_argument_group(
+        "\033[1;34mTrail Options\033[0m",
+        description="Tune the trek with colorful toggles:",
+    )
+    _ = sniff_group.add_argument(
         "-i",
         "--input",
         type=str,
-        help="Location of apps_config.json (default: project root)",
+        help="🎒 Config den for apps_config.json (default: current den)",
         default=str(Path.cwd()),
     )
-    _ = parser.add_argument(
+    _ = sniff_group.add_argument(
         "-o",
         "--output",
         type=str,
         default=str(AUDIT_DIR / "audit.csv"),
-        help="Location of output audit.csv (default: ~/.app-hound/audit/audit.csv in project root)",
+        help="🗂️  Drop spot for the sparkling audit.csv (default: ~/.app-hound/audit/audit.csv)",
+    )
+    _ = sniff_group.add_argument(
+        "-a",
+        "--app",
+        type=str,
+        default=None,
+        help="🎯 Name a single VIP app for a focused sniff instead of using apps_config.json",
     )
     return parser.parse_args()
 
 
-def ensure_directories_exist(audit_dir: Path):
+def ensure_directories_exist(*directories: Path):
     """
-    Ensure the audit directory exists.
+    Ensure the provided directories exist.
 
     Args:
-        audit_dir (Path): The audit directory path.
+        *directories (Path): Directory paths to create if missing.
     """
-    audit_dir.mkdir(parents=True, exist_ok=True)
+    for directory in directories:
+        directory.mkdir(parents=True, exist_ok=True)
 
 
 def validate_config_path(config_path: Path):
@@ -129,15 +152,21 @@ def main():
     Main entry point for app-hound: parses args, validates config, collects results, writes audit report.
     """
     args: argparse.Namespace = parse_arguments()
-    input_path = Path(args.input) / APP_CONFIG_NAME  # pyright: ignore[reportAny]
     output_path = Path(args.output)  # pyright: ignore[reportAny]
+    app_name_raw = getattr(args, "app_name", None)
+    app_name = app_name_raw.strip() if isinstance(app_name_raw, str) else None
 
-    ensure_directories_exist(AUDIT_DIR)
-    validate_config_path(input_path)
+    ensure_directories_exist(AUDIT_DIR, output_path.parent)
 
     print("\n🐶 app-hound is on the trail, ready to fetch audit results!\n")
-
-    apps = load_apps_from_json(str(input_path))
+    if app_name:
+        print(f"🐶 app-hound will sniff exclusively for '{app_name}'.\n")
+        single_app: AppConfigEntry = {"name": app_name, "additional_locations": []}
+        apps: AppsConfig = {"apps": [single_app]}
+    else:
+        input_path = Path(args.input) / APP_CONFIG_NAME  # pyright: ignore[reportAny]
+        validate_config_path(input_path)
+        apps = load_apps_from_json(str(input_path))
     all_results = collect_audit_results(apps)
 
     print(f"\n🐶 app-hound is compiling your fetch report ({output_path})...\n")

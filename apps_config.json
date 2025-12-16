@@ -1,12 +1,12 @@
 {
   "apps": [
     {
-      "name": "PDF Expert",
-      "additional_locations": ["/opt/pdf-expert", "/usr/local/share/pdfexpert"]
+      "name": "volta",
+      "additional_locations": ["/opt/volta", "/usr/local/share/volta"]
     },
     {
-      "name": "Spotify",
-      "additional_locations": ["/opt/spotify", "/usr/local/share/spotify"]
+      "name": "node",
+      "additional_locations": ["/opt/node", "/usr/local/share/node"]
     }
   ]
 }
