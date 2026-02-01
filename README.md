@@ -9,7 +9,7 @@
 - 🐶 **Playful, doggy-themed audit messages**
 - Sniffs out **top-level folders and files only**—anything inside can safely be deleted!
 - **Automatic scanning of common macOS application and user data locations**
-- **Extensible config** for additional custom locations (`additional_locations`)
+- **Flexible config loading** merges multiple files, expands environment variables, and supports extra locations (`additional_locations`)
 - **Launches installers** for apps where desired
 - **Clean, standards-compliant CSV output**:
   `App Name, Base Path, Folder, File name`
@@ -40,7 +40,7 @@
 
 ## Configuration (`apps_config.json`)
 
-App-hound uses a single config file at the project root.
+App-hound loads one or more config files from the project root by default, and you can point to other locations with the `-i` flag (comma-separated to merge multiple configs).
 
 **Example:**
 ```json
@@ -61,6 +61,7 @@ App-hound uses a single config file at the project root.
 
 - **name:** The application's name.
 - **additional_locations:** Optional extra locations to sniff for top-level folders/files.
+- **env vars in paths:** Environment variables such as `$HOME` or `$USER` are expanded anywhere they appear in the configuration.
 - **installation_path:** Optional installer path (local only) if installation should be performed.
 
 ***
@@ -82,7 +83,7 @@ App-hound uses a single config file at the project root.
 ## Help
 
 - **app-hound -h**: Display help message.
-- **app-hound -i <path>**: Specify the directory containing apps_config.json.
+- **app-hound -i <path>[,<path>...]**: Specify one or more directories (comma-separated) containing apps_config.json.
 - **app-hound -o <filename>**: Specify output CSV filename.
 - **app-hound -a "<app name>"**: Audit a single application without using apps_config.json.
 

@@ -1,15 +1,18 @@
 import json
+import os
 from pathlib import Path
+
+import pytest
 from _pytest.capture import CaptureFixture
 from _pytest.monkeypatch import MonkeyPatch
-import pytest
 
 from app_hound.finder import (
-    run_installer,
-    load_apps_from_json,
-    get_default_locations,
-    gather_app_entries,
     export_multiple_apps_files,
+    gather_app_entries,
+    get_default_locations,
+    load_apps_from_json,
+    load_apps_from_multiple_json,
+    run_installer,
 )
 from app_hound.types import AppsConfig
 
@@ -139,6 +142,42 @@ def test_export_multiple_apps_files_csv_structure(tmp_path: Path):
         and dl[2] == "False"
         and dl[3] == "B2.app"
         for dl in datalines
+    )
+
+
+def test_load_apps_from_multiple_json(tmp_path: Path):
+    config1_path = tmp_path / "apps_config1.json"
+    config2_path = tmp_path / "apps_config2.json"
+    data1 = {
+        "apps": [{"name": "App1", "additional_locations": [str(tmp_path / "extra1")]}]
+    }
+    data2 = {
+        "apps": [{"name": "App2", "additional_locations": [str(tmp_path / "extra2")]}]
+    }
+    _ = config1_path.write_text(json.dumps(data1))
+    _ = config2_path.write_text(json.dumps(data2))
+    result = load_apps_from_multiple_json([str(config1_path), str(config2_path)])
+    assert len(result["apps"]) == 2
+    assert result["apps"][0]["name"] == "App1"
+    assert result["apps"][1]["name"] == "App2"
+
+
+def test_expand_env_vars():
+    from app_hound.finder import expand_env_vars
+
+    test_data = {
+        "name": "TestApp",
+        "additional_locations": ["/opt/$HOME/test", "$USER/data"],
+    }
+    expanded_data = expand_env_vars(test_data)
+    assert expanded_data["name"] == "TestApp"
+    assert any(
+        os.path.expandvars("/opt/$HOME/test") in loc
+        for loc in expanded_data["additional_locations"]
+    )
+    assert any(
+        os.path.expandvars("$USER/data") in loc
+        for loc in expanded_data["additional_locations"]
     )
 
 

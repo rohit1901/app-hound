@@ -6,6 +6,7 @@ from typing import Any
 from app_hound.finder import (
     gather_app_entries,
     load_apps_from_json,
+    load_apps_from_multiple_json,
     run_installer,
 )
 from app_hound.types import AppConfigEntry, AppsConfig
@@ -46,7 +47,7 @@ def parse_arguments():
         "-i",
         "--input",
         type=str,
-        help="🎒 Config den for apps_config.json (default: current den)",
+        help="🎒 Config den for apps_config.json (default: current den). Multiple paths can be specified as a comma-separated list.",
         default=str(Path.cwd()),
     )
     _ = sniff_group.add_argument(
@@ -90,6 +91,27 @@ def validate_config_path(config_path: Path):
     if not config_path.exists():
         print(f"🐶 app-hound couldn't find {APP_CONFIG_NAME} at {config_path}.")
         print("Make sure your config file is in your project root directory!\n")
+        exit(1)
+
+
+def validate_config_paths(config_paths: list[Path]):
+    """
+    Validate the existence of the apps config JSON files.
+
+    Args:
+        config_paths (list[Path]): List of paths to apps_config.json files.
+
+    Raises:
+        SystemExit: If any config file is not found.
+    """
+    missing_paths = [path for path in config_paths if not path.exists()]
+    if missing_paths:
+        print(
+            f"🐶 app-hound couldn't find {APP_CONFIG_NAME} in the following config files:"
+        )
+        for path in missing_paths:
+            print(f"  - {path}")
+        print("Make sure your config files exist!\n")
         exit(1)
 
 
@@ -153,8 +175,8 @@ def main():
     """
     args: argparse.Namespace = parse_arguments()
     output_path = Path(args.output)  # pyright: ignore[reportAny]
-    app_name_raw = getattr(args, "app_name", None)
-    app_name = app_name_raw.strip() if isinstance(app_name_raw, str) else None
+    raw_app = args.app
+    app_name = raw_app.strip() if isinstance(raw_app, str) else None
 
     ensure_directories_exist(AUDIT_DIR, output_path.parent)
 
@@ -164,9 +186,14 @@ def main():
         single_app: AppConfigEntry = {"name": app_name, "additional_locations": []}
         apps: AppsConfig = {"apps": [single_app]}
     else:
-        input_path = Path(args.input) / APP_CONFIG_NAME  # pyright: ignore[reportAny]
-        validate_config_path(input_path)
-        apps = load_apps_from_json(str(input_path))
+        raw_inputs = [segment.strip() for segment in args.input.split(",")]
+        config_dirs = [Path(segment or ".") for segment in raw_inputs]
+        config_files = [config_dir / APP_CONFIG_NAME for config_dir in config_dirs]
+        validate_config_paths(config_files)
+        if len(config_files) == 1:
+            apps = load_apps_from_json(str(config_files[0]))
+        else:
+            apps = load_apps_from_multiple_json([str(path) for path in config_files])
     all_results = collect_audit_results(apps)
 
     print(f"\n🐶 app-hound is compiling your fetch report ({output_path})...\n")

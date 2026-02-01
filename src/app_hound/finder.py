@@ -1,12 +1,14 @@
+import csv
 import json
+import os
+import re
 import subprocess
 from pathlib import Path
-import csv
-import re
-from rich.console import Console
-from app_hound.types import AppsConfig, is_apps_config
 from typing import Any
 
+from rich.console import Console
+
+from app_hound.types import AppsConfig, is_apps_config
 
 console = Console()
 
@@ -41,6 +43,25 @@ def run_installer(installer_path: str) -> int:
         return subprocess.call([str(path)])
 
 
+def expand_env_vars(data: Any) -> Any:
+    """
+    Recursively expands environment variables in strings and lists of strings.
+
+    Args:
+        data (Any): The data to process.
+    Returns:
+        Any: Data with environment variables expanded.
+    """
+    if isinstance(data, str):
+        return os.path.expandvars(data)
+    elif isinstance(data, list):
+        return [expand_env_vars(item) for item in data]
+    elif isinstance(data, dict):
+        return {key: expand_env_vars(value) for key, value in data.items()}
+    else:
+        return data
+
+
 def load_apps_from_json(json_path: str) -> AppsConfig:
     """
     Loads app definitions from a JSON configuration file.
@@ -60,7 +81,28 @@ def load_apps_from_json(json_path: str) -> AppsConfig:
         if not config.get("apps"):
             raise ValueError("Invalid apps configuration")
 
+        # Expand environment variables in the configuration
+        config = expand_env_vars(config)
+
         return config
+
+
+def load_apps_from_multiple_json(json_paths: list[str]) -> AppsConfig:
+    """
+    Loads app definitions from multiple JSON configuration files and merges them.
+
+    Args:
+        json_paths (list[str]): List of paths to config files.
+    Returns:
+        AppsConfig: Merged configuration.
+    """
+    merged_config: AppsConfig = {"apps": []}
+
+    for json_path in json_paths:
+        config = load_apps_from_json(json_path)
+        merged_config["apps"].extend(config["apps"])
+
+    return merged_config
 
 
 def get_default_locations(app_name: str) -> list[str]:

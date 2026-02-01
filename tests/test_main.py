@@ -14,7 +14,7 @@ from app_hound.main import (
     main,
     parse_arguments,
     process_app_entries,
-    validate_config_path,
+    validate_config_paths,
     write_audit_csv,
 )
 from app_hound.types import AppConfigEntry, AppsConfig
@@ -27,7 +27,7 @@ def test_parse_arguments_required(monkeypatch: MonkeyPatch):
     args = parse_arguments()
     assert args.input == "/some/path"
     assert args.output == "/tmp/out.csv"
-    assert args.app_name is None
+    assert args.app is None
 
 
 def test_parse_arguments_defaults(monkeypatch: MonkeyPatch):
@@ -37,14 +37,14 @@ def test_parse_arguments_defaults(monkeypatch: MonkeyPatch):
     args = parse_arguments()
     assert args.input == "/another/path"
     assert args.output.endswith("audit.csv")  # Should use default AUDIT_DIR
-    assert args.app_name is None
+    assert args.app is None
 
 
 def test_parse_arguments_single_app(monkeypatch: MonkeyPatch):
     argv = ["prog", "-a", "SoloApp"]
     monkeypatch.setattr(sys, "argv", argv)
     args = parse_arguments()
-    assert args.app_name == "SoloApp"
+    assert args.app == "SoloApp"
     assert args.input == str(Path.cwd())
     assert args.output.endswith("audit.csv")
 
@@ -66,7 +66,7 @@ def test_validate_config_path_exists(tmp_path: Path, capsys: CaptureFixture[str]
     conf = tmp_path / "apps_config.json"
     _ = conf.write_text("{}")
     # Should not raise since file exists
-    validate_config_path(conf)
+    validate_config_paths([conf])
     captured = capsys.readouterr()
     assert captured.out == ""
 
@@ -74,10 +74,36 @@ def test_validate_config_path_exists(tmp_path: Path, capsys: CaptureFixture[str]
 def test_validate_config_path_missing(tmp_path: Path, capsys: CaptureFixture[str]):
     conf = tmp_path / "missing.json"
     with pytest.raises(SystemExit):
-        validate_config_path(conf)
+        validate_config_paths([conf])
     captured = capsys.readouterr()
     assert "couldn't find" in captured.out
     assert APP_CONFIG_NAME in captured.out
+
+
+def test_parse_arguments_multiple_configs(monkeypatch: MonkeyPatch):
+    argv = ["prog", "-i", "/path1,/path2"]
+    monkeypatch.setattr(sys, "argv", argv)
+    args = parse_arguments()
+    assert args.input == "/path1,/path2"
+
+
+def test_validate_config_paths_success(tmp_path: Path):
+    conf1 = tmp_path / "apps_config1.json"
+    conf2 = tmp_path / "apps_config2.json"
+    _ = conf1.write_text("{}")
+    _ = conf2.write_text("{}")
+    validate_config_paths([conf1, conf2])
+
+
+def test_validate_config_paths_missing(tmp_path: Path, capsys: CaptureFixture[str]):
+    conf1 = tmp_path / "apps_config1.json"
+    conf2 = tmp_path / "missing.json"
+    _ = conf1.write_text("{}")
+    with pytest.raises(SystemExit):
+        validate_config_paths([conf1, conf2])
+    captured = capsys.readouterr()
+    assert "couldn't find" in captured.out
+    assert "missing.json" in captured.out
 
 
 @pytest.mark.skip(reason="Test is deprecated")
@@ -158,11 +184,11 @@ def test_main_success(monkeypatch: MonkeyPatch, tmp_path: Path):
     monkeypatch.setattr(
         "app_hound.main.parse_arguments",
         lambda: argparse.Namespace(
-            input=str(tmp_path), output=str(tmp_path / "out.csv"), app_name=None
+            input=str(tmp_path), output=str(tmp_path / "out.csv"), app=None
         ),
     )
     monkeypatch.setattr("app_hound.main.ensure_directories_exist", lambda *paths: paths)  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
-    monkeypatch.setattr("app_hound.main.validate_config_path", lambda p: None)  # pyright: ignore [reportUnknownLambdaType, reportUnknownArgumentType]
+    monkeypatch.setattr("app_hound.main.validate_config_paths", lambda p: None)  # pyright: ignore [reportUnknownLambdaType, reportUnknownArgumentType]
     monkeypatch.setattr("app_hound.main.load_apps_from_json", lambda p: {"apps": []})  # pyright: ignore [reportUnknownLambdaType, reportUnknownArgumentType]
     monkeypatch.setattr("app_hound.main.collect_audit_results", lambda apps: [])  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
     monkeypatch.setattr("app_hound.main.write_audit_csv", lambda results, path: None)  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
@@ -176,7 +202,7 @@ def test_main_single_app(monkeypatch: MonkeyPatch, tmp_path: Path):
         lambda: argparse.Namespace(
             input=str(tmp_path),
             output=str(tmp_path / "out.csv"),
-            app_name="SoloApp",
+            app="SoloApp",
         ),
     )
     monkeypatch.setattr(
@@ -184,9 +210,9 @@ def test_main_single_app(monkeypatch: MonkeyPatch, tmp_path: Path):
         lambda *paths: None,  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
     )
     monkeypatch.setattr(
-        "app_hound.main.validate_config_path",
+        "app_hound.main.validate_config_paths",
         lambda _: pytest.fail(
-            "validate_config_path should not be called in single-app mode"
+            "validate_config_paths should not be called in single-app mode"
         ),
     )
     monkeypatch.setattr(
@@ -209,18 +235,18 @@ def test_main_single_app(monkeypatch: MonkeyPatch, tmp_path: Path):
 
 
 def test_main_config_missing(monkeypatch: MonkeyPatch, tmp_path: Path):
-    # validate_config_path should exit if config missing
+    # validate_config_paths should exit if config missing
     monkeypatch.setattr(
         "app_hound.main.parse_arguments",
         lambda: argparse.Namespace(
-            input=str(tmp_path), output=str(tmp_path / "out.csv"), app_name=None
+            input=str(tmp_path), output=str(tmp_path / "out.csv"), app=None
         ),
     )
     _ = monkeypatch.setattr(
         "app_hound.main.ensure_directories_exist", lambda *paths: paths
     )  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
     _ = monkeypatch.setattr(
-        "app_hound.main.validate_config_path",
+        "app_hound.main.validate_config_paths",
         lambda p: sys.exit(1),  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
     )
     with pytest.raises(SystemExit):
