@@ -13,6 +13,8 @@
 - **Launches installers** for apps where desired
 - **Clean, standards-compliant CSV output**:
   `App Name, Base Path, Folder, File name`
+- **Live progress indicators** keep long trails transparent (disable with `--no-progress`)
+- **Quiet mode & color customization** adapt app-hound for scripts and personal flair (`--quiet`, `--accent-color`, etc.)
 - **Tested to >95% coverage**
 - Works with __Poetry__ for easy setup and dependency management
 
@@ -79,6 +81,11 @@ App-hound loads one or more config files from the project root by default, and y
 2. **Follow prompts:**
    - Enter any installer paths if relevant (app-hound will fetch them for you!).
    - Enter the desired output CSV filename.
+
+3. **Tune the experience (optional):**
+   - `--quiet` keeps console output minimal for scripting.
+   - `--no-progress` hides live progress bars for log-friendly runs.
+   - `--accent-color`, `--info-color`, `--highlight-color`, and friends recolor the interface using Rich style strings (e.g., `bold magenta`).
 
 ## Help
 

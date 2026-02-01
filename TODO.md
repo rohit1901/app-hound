@@ -16,15 +16,10 @@ This file outlines potential improvements and features for the `app-hound` proje
 - [ ] Include metadata in reports (file size, last modified date, permissions)
 - [ ] Add an interactive mode for reviewing findings before generating reports
 
-## Installer Handling Improvements
-- [ ] Support downloading installers from URLs
-- [ ] Add checksum verification for installers
-- [ ] Log installer execution details for debugging
-
 ## User Experience Improvements
-- [ ] Add progress bars for long-running operations
-- [ ] Allow color customization for console output
-- [ ] Add a quiet mode to suppress console output for scripting
+- [x] Add progress bars for long-running operations
+- [x] Allow color customization for console output
+- [x] Add a quiet mode to suppress console output for scripting
 
 ## Testing and Validation Enhancements
 - [ ] Add integration tests for real-world scenarios
