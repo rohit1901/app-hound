@@ -340,10 +340,38 @@ class OutputManager:
         self.print(message, style=self._palette.accent, emoji="🐶")
 
 
+class OutputConsoleAdapter:
+    """
+    Small adapter that exposes a ConsoleLike-style interface backed by OutputManager.
+
+    This allows the removal pipeline to reuse the existing presentation layer
+    without importing Rich directly.
+    """
+
+    def __init__(self, manager: OutputManager) -> None:
+        self._manager = manager
+
+    def info(self, message: str) -> None:
+        self._manager.info(message, emoji="🐶")
+
+    def success(self, message: str) -> None:
+        self._manager.success(message, emoji="🐶")
+
+    def warning(self, message: str) -> None:
+        self._manager.warning(message, emoji="🐶")
+
+    def error(self, message: str) -> None:
+        self._manager.error(message, emoji="🐶", force=True)
+
+    def highlight(self, message: str) -> None:
+        self._manager.highlight(message, emoji="🐶")
+
+
 __all__ = [
     "ColorPalette",
     "DEFAULT_PALETTE",
     "OutputManager",
     "ProgressTask",
     "SilentProgressTask",
+    "OutputConsoleAdapter",
 ]

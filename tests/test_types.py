@@ -1,6 +1,5 @@
-import pytest
-
 from typing import Any
+
 from app_hound.types import (  # Replace with actual module name
     AppConfigEntry,
     AppsConfig,
@@ -14,6 +13,9 @@ def test_is_app_config_entry_valid():
     valid_entry: AppConfigEntry = {
         "name": "TestApp",
         "additional_locations": ["/opt/test", "/usr/local/test"],
+        "installation_path": "/tmp/installer.pkg",
+        "deep_home_search": True,
+        "patterns": ["~/Library/Application Support/TestApp/*"],
     }
     assert is_app_config_entry(valid_entry) is True
 
@@ -33,6 +35,14 @@ def test_is_app_config_entry_name_not_str():
 
 def test_is_app_config_entry_missing_additional_locations():
     entry: Any = {"name": "TestApp"}  # pyright: ignore[reportExplicitAny]
+    assert is_app_config_entry(entry) is True
+
+
+def test_is_app_config_entry_invalid_deep_home_search():
+    entry: Any = {
+        "name": "TestApp",
+        "deep_home_search": "yes",
+    }  # pyright: ignore[reportExplicitAny]
     assert is_app_config_entry(entry) is False
 
 
@@ -80,7 +90,7 @@ def test_is_apps_config_apps_not_list():
 def test_is_apps_config_apps_list_with_invalid_entry():
     config: Any = {  # pyright: ignore[reportExplicitAny]
         "apps": [
-            {"name": "PDF Expert"},  # missing additional_locations
+            {"name": "PDF Expert", "deep_home_search": "sometimes"},
             {"name": "Spotify", "additional_locations": ["/opt/spotify"]},
         ]
     }
