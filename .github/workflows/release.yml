@@ -7,6 +7,9 @@ on:
         description: "New version (e.g., 0.2.0)"
         required: true
 
+permissions:
+  contents: write
+
 jobs:
   bump-release:
     runs-on: ubuntu-latest
@@ -53,7 +56,8 @@ jobs:
         env:
           AH_PAT_STRONG: ${{ secrets.AH_PAT_STRONG }}
         run: |
-          git push https://x-access-token:${{ secrets.AH_PAT_STRONG }}@github.com/${{ github.repository }} HEAD:${{ github.ref_name }}
+          git remote set-url origin https://x-access-token:${AH_PAT_STRONG}@github.com/${{ github.repository }}
+          git push origin HEAD:${{ github.ref_name }}
 
       - name: Build distribution (sdist and wheel)
         run: |
