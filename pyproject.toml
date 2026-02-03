@@ -1,6 +1,6 @@
 [project]
 name = "app-hound"
-version = "1.0.2"
+version = "2.0.0"
 description = "A simple Python utility to list and export all files and directories associated with any apps on a Mac. Helps users track installed paths and audit/uninstall completely."
 authors = [
     {name = "Rohit Khanduri",email = "rohit.khanduri@hotmail.com"}
