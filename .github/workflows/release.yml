@@ -15,6 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.AH_PAT_STRONG }}
+          fetch-depth: 0
+          persist-credentials: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -53,10 +57,7 @@ jobs:
           git rebase origin/main
 
       - name: Push version bump
-        env:
-          AH_PAT_STRONG: ${{ secrets.AH_PAT_STRONG }}
         run: |
-          git remote set-url origin https://x-access-token:${AH_PAT_STRONG}@github.com/${{ github.repository }}
           git push origin HEAD:${{ github.ref_name }}
 
       - name: Build distribution (sdist and wheel)
