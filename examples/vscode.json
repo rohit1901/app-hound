@@ -1,0 +1,25 @@
+{
+  "apps": [
+    {
+      "name": "Visual Studio Code",
+      "additional_locations": [
+        "/Applications/Visual Studio Code.app",
+        "~/Library/Application Support/Code",
+        "~/Library/Caches/com.microsoft.VSCode",
+        "~/Library/Caches/com.microsoft.VSCode.ShipIt",
+        "~/Library/Preferences/com.microsoft.VSCode.plist",
+        "~/Library/Preferences/com.microsoft.VSCode.helper.plist",
+        "~/Library/Saved Application State/com.microsoft.VSCode.savedState",
+        "~/Library/Logs/Code",
+        "~/Library/WebKit/com.microsoft.VSCode",
+        "~/.vscode"
+      ],
+      "patterns": [
+        "~/Library/Preferences/*vscode*",
+        "~/Library/Caches/*vscode*",
+        "~/Library/Application Support/Code/*"
+      ],
+      "deep_home_search": false
+    }
+  ]
+}

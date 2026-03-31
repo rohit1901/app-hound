@@ -369,6 +369,8 @@ def export_multiple_apps_files(
     )
     for app in iterable:
         name: str | None = app.get("name")
+        if not name:
+            continue
         additional_locations = app.get("additional_locations", [])
         if verbose:
             manager.rule(f"🐶 app-hound is sniffing for '{name}'!")

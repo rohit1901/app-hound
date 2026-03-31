@@ -1,52 +1,69 @@
 # 🐶 app-hound
 
-Deterministic macOS artifact hunter that scans well-known locations for application traces and produces rich CSV/JSON reports. It optionally generates a safe deletion plan and a shell script for interactive cleanup.
+**Version 2.0** - Deterministic macOS artifact hunter with interactive TUI mode, comprehensive validation, and plan execution.
 
-app-hound focuses on:
-- Deterministic scanning of standard macOS locations (Applications, Application Support, Preferences, Containers, caches, logs, etc.)
-- A rich domain model (Artifact, ScanResult, ScanSummary) with metadata (kind, scope, category, exists, size, last modified, removal safety, notes)
-- Clean CLI outputs (CSV/JSON) and optional deletion plan + shell script generation
-- Opt-in deep home directory search for exhaustive matching
-- Clear separation of concerns (Scanner, UI presenter, configuration loader, installer runner, removal planning)
+Scans well-known locations for application traces and produces rich CSV/JSON reports with deletion plans, shell scripts, and optional interactive artifact review.
 
----
+## ✨ Key Features
 
-## Installation
-
-- Using Poetry (recommended):
-  - Install Poetry: `curl -sSL https://install.python-poetry.org | python3 -`
-  - Clone repository:
-    - `git clone https://github.com/rohit1901/app-hound.git`
-    - `cd app-hound`
-  - Install dependencies:
-    - `poetry install`
-
-- Running:
-  - `poetry run app-hound --help`
+- **Interactive TUI Mode** - Review and select artifacts for deletion with Rich-based interface
+- **Deterministic Scanning** - Scans standard macOS locations (Applications, Application Support, Preferences, Containers, caches, logs, etc.)
+- **Rich Metadata** - Artifact model with kind, scope, category, safety levels, size, timestamps, and removal instructions
+- **Plan Execution** - Generate and execute deletion plans with built-in safety confirmations
+- **Input Validation** - Comprehensive security checks for all user inputs
+- **Exclusion Patterns** - Filter out paths you don't want to scan
+- **Multiple Output Formats** - CSV, JSON reports, deletion plans, and executable shell scripts
+- **Example Configs** - Ready-to-use configurations for Slack, Discord, Chrome, VS Code, and more
 
 ---
 
-## Purpose
+## 📦 Installation
+
+### Using Poetry (recommended)
+
+```bash
+# Install Poetry
+curl -sSL https://install.python-poetry.org | python3 -
+
+# Clone repository
+git clone https://github.com/rohit1901/app-hound.git
+cd app-hound
+
+# Install dependencies
+poetry install
+
+# Run app-hound
+poetry run app-hound --help
+```
+
+---
+
+## 🎯 Purpose
 
 Uninstalling macOS apps cleanly requires identifying all related files (app bundles, support data, preferences, logs, caches, containers, saved state). app-hound scans predictable places and produces a structured set of artifacts so you can:
-- Audit what exists and where
-- Decide what’s safe to remove (e.g., caches/logs) vs. what needs caution (e.g., preferences)
-- Generate a deletion plan and an interactive shell script to clean up confidently
+
+- **Audit** what exists and where
+- **Decide** what's safe to remove (e.g., caches/logs) vs. what needs caution (e.g., preferences)
+- **Generate** a deletion plan and an interactive shell script to clean up confidently
+- **Review** artifacts in a beautiful TUI before making any changes
 
 ---
 
-## Configuration
+## ⚙️ Configuration
 
 Configuration files are JSON and can be merged from multiple sources. By default, app-hound looks for `apps_config.json` in the input directory.
 
-Schema (per-app):
+### Schema (per-app)
+
 - `name` (string, required)
 - `additional_locations` (array of strings, optional)
 - `installation_path` (string or null, optional)
 - `deep_home_search` (boolean, optional)
 - `patterns` (array of strings, optional; supports glob patterns)
+- `exclusions` (array of strings, optional; glob patterns to exclude)
 
-Example `apps_config.json`:
+### Example Configuration
+
 ```json
 {
   "apps": [
@@ -58,6 +75,10 @@ Example `apps_config.json`:
       "patterns": [
         "~/Library/**/Slack*",
         "/Library/Application Support/slack*"
+      ],
+      "exclusions": [
+        "*/Cache/*",
+        "*.log"
       ]
     },
     {
@@ -67,162 +88,292 @@ Example `apps_config.json`:
 }
 ```
 
-Notes:
-- Environment variables and `~` are expanded in paths and patterns.
-- Multiple configuration files can be merged using `--input` with comma-separated paths; each must contain `{ "apps": [...] }`.
+**Notes:**
+- Environment variables and `~` are expanded in paths and patterns
+- Multiple configuration files can be merged using `--input` with comma-separated paths
+- Each config file must contain `{ "apps": [...] }`
 
 ---
 
-## Quick Start
+## 🚀 Quick Start
 
-- Scan apps from a local configuration:
-  - `poetry run app-hound --input ./`
+### View version and help
 
-- Scan a single app without a config file:
-  - `poetry run app-hound --app "Slack"`
+```bash
+poetry run app-hound --version
+poetry run app-hound --help
+```
 
-- Include JSON report of artifacts:
-  - `poetry run app-hound --input ./` (JSON is written by default to `~/.app-hound/audit/artifacts.json`)
+### Use example configurations
 
-- Generate a deletion plan JSON and script:
-  - `poetry run app-hound --input ./` (Plan JSON and script are written by default to `~/.app-hound/audit/plan.json` and `~/.app-hound/audit/delete.sh`)
+```bash
+# Scan Slack using example config
+poetry run app-hound --input examples/slack.json --interactive
 
----
+# Scan multiple apps
+poetry run app-hound --input examples/multi-app.json --interactive
+```
 
-## CLI Options
+### Scan a single app
 
-Core:
-- `-i, --input <path>[,<path>...]`:
-  - Directory containing `apps_config.json` or direct path(s) to configuration files. Comma-separated to merge multiple configs.
-- `-o, --output <path>`:
-  - Custom CSV report path. By default, app-hound writes to `~/.app-hound/audit/audit.csv`.
-- `--json-output <path>`:
-  - Custom JSON artifact report path (default: `~/.app-hound/audit/artifacts.json`).
-- `--app, --app-name <name>`:
-  - Scan a single application (no config file needed).
-- `--additional-location <path>` (repeatable):
-  - Extra location(s) to inspect when using `--app`.
-- `--pattern <glob>` (repeatable):
-  - Extra glob pattern(s) to evaluate (supports `**` recursive patterns).
-- `--installation-path <path>`:
-  - Installer path to execute before scanning (used with `--app`).
+```bash
+# Basic scan
+poetry run app-hound --app "Slack"
 
-Scanning behavior:
-- `--deep-home-search`:
-  - Enable brute-force home directory matching in addition to deterministic locations (potentially slow, capped at 500 matches and reports truncation).
+# Interactive mode (recommended)
+poetry run app-hound --app "Slack" --interactive
 
-Installers:
-- `--run-installers`:
-  - Run installer commands when configuration entries provide an `installation_path` (supports `.pkg` via `installer`, `.dmg` with manual action prompt, `.app` via `open`, and executables).
+# With exclusions
+poetry run app-hound --app "Chrome" --exclude "*/Cache/*" --exclude "*.log"
+```
 
-Plans & deletion:
-- `--plan <path>`:
-  - Custom JSON deletion plan path (default: `~/.app-hound/audit/plan.json`). The plan is derived from artifacts (enabled entries default to SAFE artifacts that exist).
-- `--plan-script <path>`:
-  - Custom shell script path (default: `~/.app-hound/audit/delete.sh`). The script includes prompts and is marked executable by default.
+### Execute a deletion plan
 
-Presentation:
-- `--quiet`:
-  - Suppress console output (warnings/errors still display).
-- `--no-progress`:
-  - Disable live progress indicators.
-- Color customization:
-  - `--accent-color`, `--info-color`, `--success-color`, `--warning-color`, `--error-color`, `--highlight-color`, `--muted-color`, `--progress-bar-color`, `--progress-complete-color`, `--progress-description-color`
+```bash
+# Generate plan first
+poetry run app-hound --app "OldApp"
+
+# Execute the plan (with confirmations)
+poetry run app-hound --execute-plan ~/.app-hound/audit/plan.json
+```
 
 ---
 
-## Reports
+## 🎮 CLI Options
 
-CSV (`--output`) includes:
-- `App Name`
-- `Artifact Path`
-- `Kind` (file, directory, symlink, unknown)
-- `Scope` (default, configured, discovered, system, unknown)
-- `Category` (application, support, cache, preferences, logs, launch-agent, other)
-- `Exists`
-- `Writable`
-- `Size (bytes)` (files only, non-symlinks)
-- `Last Modified` (ISO 8601, UTC)
-- `Removal Safety` (SAFE, CAUTION, REVIEW)
-- `Notes`
-- `Removal Instructions`
+### Core Options
 
-JSON (`--json-output`) captures the full artifact model:
-- One entry per app with `generated_at`, `artifacts` (full metadata), and `errors` (non-fatal scan notes).
+- `-v, --version` - Show detailed version information
+- `-h, --help` - Show beautiful Rich-formatted help
+- `-i, --input <path>` - Configuration file(s), comma-separated to merge
+- `-a, --app <name>` - Scan a single app without config file
+- `--interactive` - Enter interactive TUI mode for artifact review
+- `--execute-plan <path>` - Execute deletion plan from JSON file
+
+### Output Options
+
+- `-o, --output <path>` - CSV report (default: `~/.app-hound/audit/audit.csv`)
+- `--json-output <path>` - JSON artifact report (default: `~/.app-hound/audit/artifacts.json`)
+- `--plan <path>` - Deletion plan JSON (default: `~/.app-hound/audit/plan.json`)
+- `--plan-script <path>` - Shell script (default: `~/.app-hound/audit/delete.sh`)
+
+### Scanning Options
+
+- `--additional-location <path>` - Extra location to inspect (repeatable)
+- `--pattern <glob>` - Glob pattern to match (repeatable)
+- `--exclude <pattern>` - Exclude paths matching pattern (repeatable)
+- `--deep-home-search` - Enable brute-force home directory search (slow)
+
+### Installation Options
+
+- `--installation-path <path>` - Installer to run before scanning
+- `--run-installers` - Execute installers from config
+
+### Display Options
+
+- `--quiet` - Suppress console output (warnings/errors still show)
+- `--no-progress` - Disable progress indicators
+- Color customization: `--accent-color`, `--info-color`, `--success-color`, `--warning-color`, `--error-color`, `--highlight-color`, `--muted-color`, `--progress-bar-color`, `--progress-complete-color`, `--progress-description-color`
 
 ---
 
-## Plans & Deletion
+## 📊 Reports
 
-Deletion Plan (`--plan`):
-- Built from the scan results with entries derived from artifacts.
-- Enabled entries default to SAFE artifacts that currently exist (e.g., caches/logs). CAUTION/REVIEW entries are disabled by default.
-- JSON structure includes fields such as:
-  - `app_name`, `path`, `kind`, `category`, `scope`, `exists`, `writable`, `removal_safety`, `notes`, `removal_instructions`, `enabled`, `suggested_command`
+### CSV Report
 
-Deletion Script (`--plan-script`):
-- Portable bash script with:
-  - Header (`#!/usr/bin/env bash`, `set -euo pipefail`)
-  - Per-entry comments (notes/instructions)
-  - Interactive prompt before each deletion
-  - Commands use `rm -rf` for directories and `rm -f` for files/symlinks
+Columns include:
+- App Name
+- Artifact Path
+- Kind (file, directory, symlink, unknown)
+- Scope (default, configured, discovered, system, unknown)
+- Category (application, support, cache, preferences, logs, launch-agent, other)
+- Exists
+- Writable
+- Size (bytes) - files only, non-symlinks
+- Last Modified (ISO 8601, UTC)
+- Removal Safety (SAFE, CAUTION, REVIEW)
+- Notes
+- Removal Instructions
+
+### JSON Report
+
+Captures the full artifact model with:
+- One entry per app
+- `generated_at` timestamp
+- `artifacts` array with full metadata
+- `errors` array with non-fatal scan notes
+
+### Deletion Plan
+
+JSON structure with enabled/disabled entries:
+- `app_name`, `path`, `kind`, `category`, `scope`
+- `exists`, `writable`, `removal_safety`
+- `notes`, `removal_instructions`
+- `enabled` (defaults to SAFE artifacts only)
+- `suggested_command`
+
+### Shell Script
+
+Portable bash script with:
+- Header (`#!/usr/bin/env bash`, `set -euo pipefail`)
+- Per-entry comments (notes/instructions)
+- Interactive prompts before each deletion
+- Safe commands (`rm -rf` for directories, `rm -f` for files)
 - Marked executable automatically
 
-Programmatic deletion (optional):
-- The removal pipeline provides an `ArtifactRemover` that can execute deletions using Python filesystem operations with options for dry-run, prompt, force, and stop-on-error. It returns a `RemovalReport` with successes, failures, and skips.
-- To use it in your own scripts, import from `app_hound.removal` and plug in `app_hound.ui.OutputConsoleAdapter` for consistent console messages.
+---
 
-Safety notes:
-- Review CAUTION/REVIEW entries before enabling deletion.
-- The script prompts for confirmation; leave prompts enabled unless you fully trust the plan.
-- Consider running with a dry-run first (script inspection or programmatic dry-run).
+## 💡 Examples
+
+### Interactive workflow (recommended)
+
+```bash
+# Scan and review interactively
+poetry run app-hound --app "Slack" --interactive
+
+# In the TUI:
+# - Press 'f' → '4' to filter safe items only
+# - Press 'x' to execute deletion
+# - Confirm with dry-run, then actual deletion
+```
+
+### Using example configs
+
+```bash
+# Single app with full features
+poetry run app-hound --input examples/slack.json --interactive
+
+# Multiple apps at once
+poetry run app-hound --input examples/multi-app.json --interactive
+```
+
+### Advanced scanning
+
+```bash
+# With exclusions
+poetry run app-hound --app "Chrome" \
+  --exclude "*/Cache/*" \
+  --exclude "*.log" \
+  --interactive
+
+# Deep search with patterns
+poetry run app-hound --app "VSCode" \
+  --pattern "~/.vscode*" \
+  --deep-home-search \
+  --output ~/Desktop/vscode-audit.csv
+```
+
+### Plan execution
+
+```bash
+# Generate plan first
+poetry run app-hound --app "OldApp"
+
+# Review plan JSON
+cat ~/.app-hound/audit/plan.json
+
+# Execute with confirmations
+poetry run app-hound --execute-plan ~/.app-hound/audit/plan.json
+```
+
+### Merging configurations
+
+```bash
+poetry run app-hound --input ~/configs/slack.json,~/configs/pdf.json
+```
 
 ---
 
-## Examples
+## 🛡️ Safety Notes
 
-- Single app scan with extra hints and a plan:
-  - `poetry run app-hound --app "Slack" --additional-location "~/opt/slack-legacy" --pattern "~/Library/**/Slack*" --output ~/.app-hound/audit/audit.csv --json-output ~/.app-hound/audit/artifacts.json --plan ~/.app-hound/audit/plan.json --plan-script ~/.app-hound/audit/delete.sh`
-
-- Merging multiple configurations:
-  - `poetry run app-hound --input ~/configs/slack.json,~/configs/pdf.json --output ~/.app-hound/audit/audit.csv`
-
-- Deep home search (opt-in; potentially noisy/slow):
-  - `poetry run app-hound --app "Visual Studio Code" --deep-home-search --output ~/.app-hound/audit/audit.csv`
+- **Review CAUTION/REVIEW entries** before enabling deletion
+- **Use interactive mode** to review before deleting
+- **Run dry-run first** (automatically offered in `--execute-plan`)
+- **Create backups** (Time Machine) before major cleanups
+- **Read the notes** - safety levels are color-coded (green/yellow/red)
 
 ---
 
-## Development Notes
+## 🏗️ Development
 
-Structure:
-- `src/app_hound/`:
-  - `main.py`: CLI wiring, argument parsing, installer execution, scan orchestration, reports, plan/script generation
-  - `scanner.py`: deterministic artifact discovery with filesystem abstraction, deep-home search optional
-  - `domain.py`: artifact model, scan result/summary, enums, serialization helpers
-  - `configuration.py`: config dataclasses, loading/merging, environment/path expansion
-  - `installer.py`: installer runner with feedback protocol and status outcomes
-  - `ui.py`: OutputManager presentation, progress, palette customization, adapter for removal console
-  - `removal.py`: plan building, shell script writing, ArtifactRemover and RemovalReport
-  - Legacy: `finder.py` (older procedural approach) is present for reference but superseded by `scanner.py`
+### Structure
 
-Testing (suggested):
-- Unit tests around `Scanner` (using a virtual/pyfakefs filesystem)
-- Snapshot tests for artifact JSON and CSV output
-- Tests for `DeletionPlan` and `write_shell_script`
-- Installer runner tests with a stubbed command runner
+```
+src/app_hound/
+├── main.py           # CLI wiring, argument parsing, orchestration
+├── scanner.py        # Deterministic artifact discovery
+├── domain.py         # Artifact model, enums, serialization
+├── configuration.py  # Config loading/merging
+├── installer.py      # Installer runner
+├── ui.py            # OutputManager, Rich presentation
+├── removal.py        # Plan building, deletion execution
+├── interactive.py    # Interactive TUI mode
+├── validation.py     # Input validation and security
+└── finder.py         # Legacy (superseded by scanner.py)
+```
 
-Contributions:
-- PRs welcomed for plugin hooks, per-app rule extensions, interactive selection UI, and expanded locations.
-- Keep the UI friendly and the scanning deterministic.
+### Testing
+
+```bash
+# Run all tests
+poetry run pytest
+
+# Run with coverage
+poetry run pytest --cov=app_hound --cov-report=html
+
+# Test structure includes:
+# - Unit tests for Scanner (with mock filesystem)
+# - Domain model tests (140 total tests)
+# - Interactive mode tests
+# - Integration tests
+```
+
+### Contributing
+
+PRs welcome for:
+- Plugin hooks
+- Per-app rule extensions
+- Interactive selection enhancements
+- Expanded location detection
+- Cross-platform support
+
+Keep the UI friendly and scanning deterministic!
 
 ---
 
-## License
+## 🎉 What's New in v2.0
+
+- ✨ **Interactive Mode** - Rich TUI for artifact selection and deletion
+- 🚀 **Plan Execution** - `--execute-plan` command with multi-step confirmation
+- 🛡️ **Input Validation** - Comprehensive security checks for all inputs
+- 🚫 **Exclusion Patterns** - `--exclude` flag to filter unwanted paths
+- 📋 **Example Configs** - 5 ready-to-use configs in `examples/` directory
+- 💎 **Enhanced Help** - Beautiful Rich-formatted `--help` output
+- 📌 **Detailed Version** - `--version` shows Python, platform, author
+- 🧪 **140 Tests** - Comprehensive test suite with 100% pass rate
+- ✅ **Zero Errors** - Complete type safety and validation
+
+See `CHANGELOG.md` for full release notes.
+
+---
+
+## 📚 Documentation
+
+- `QUICK_START.md` - 5-minute beginner guide
+- `INTERACTIVE_MODE_GUIDE.md` - Complete interactive mode tutorial
+- `examples/README.md` - Example configuration guide
+- `CHANGELOG.md` - Version 2.0 release notes
+- `TODO.md` - Roadmap and future features
+- `IMPLEMENTATION_SUMMARY.md` - Technical details
+
+---
+
+## 📄 License
 
 MIT
 
 ---
 
-## About
+## 🐾 About
 
-A friendly dog-themed tool for Mac users and admins. app-hound helps you audit and clean application traces with confidence—sniff, fetch, and wag your way to a tidy system!
+A friendly dog-themed tool for Mac users and admins. app-hound helps you audit and clean application traces with confidence—sniff, fetch, and wag your way to a tidy system! 🐶🦴

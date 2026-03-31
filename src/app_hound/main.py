@@ -3,9 +3,14 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Sequence
+
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
 
 from app_hound.configuration import (
     AppConfiguration,
@@ -22,13 +27,27 @@ from app_hound.domain import (
     summarize_all,
 )
 from app_hound.installer import InstallerRunner, InstallerStatus
+from app_hound.interactive import run_interactive_mode
 from app_hound.removal import DeletionPlan, write_shell_script
 from app_hound.scanner import Scanner
 from app_hound.ui import OutputManager
+from app_hound.validation import (
+    ValidationError,
+    validate_app_name,
+    validate_color,
+    validate_file_path,
+    validate_glob_pattern,
+)
 
 APP_HOUND_HOME = Path.home() / ".app-hound"
 AUDIT_DIR = APP_HOUND_HOME / "audit"
 DEFAULT_CSV = AUDIT_DIR / "audit.csv"
+
+# Version information
+VERSION = "2.0.1"
+PYTHON_VERSION = (
+    f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+)
 
 
 @dataclass(frozen=True)
@@ -40,34 +59,19 @@ class ParsedArgs:
         return Path(self.argv.output).expanduser()
 
     @property
-    def json_output_path(self) -> Path | None:
-        json_path = self.argv.json_output
-        return Path(json_path).expanduser() if json_path else None
+    def json_output_path(self) -> Path:
+        return Path(self.argv.json_output).expanduser()
 
     @property
-    def plan_output_path(self) -> Path | None:
-        plan_path = self.argv.plan
-        return Path(plan_path).expanduser() if plan_path else None
+    def plan_output_path(self) -> Path:
+        return Path(self.argv.plan).expanduser()
 
     @property
-    def plan_script_output_path(self) -> Path | None:
-        plan_script_path = getattr(self.argv, "plan_script", None)
-        return Path(plan_script_path).expanduser() if plan_script_path else None
+    def plan_script_output_path(self) -> Path:
+        return Path(self.argv.plan_script).expanduser()
 
     @property
     def palette_overrides(self) -> dict[str, str]:
-        names = (
-            "accent_color",
-            "info_color",
-            "success_color",
-            "warning_color",
-            "error_color",
-            "highlight_color",
-            "muted_color",
-            "progress_bar_color",
-            "progress_complete_color",
-            "progress_description_color",
-        )
         mapping = {
             "accent": self.argv.accent_color,
             "info": self.argv.info_color,
@@ -80,7 +84,18 @@ class ParsedArgs:
             "progress_complete": self.argv.progress_complete_color,
             "progress_description": self.argv.progress_description_color,
         }
-        return {key: value for key, value in mapping.items() if value}
+        # Validate colors before returning
+        validated = {}
+        for key, value in mapping.items():
+            if value:
+                try:
+                    validated_color = validate_color(value, allow_none=True)
+                    if validated_color:
+                        validated[key] = validated_color
+                except ValidationError as exc:
+                    # Log warning but don't fail - just skip invalid color
+                    print(f"Warning: Invalid {key}: {exc}", file=sys.stderr)
+        return validated
 
 
 class OutputManagerFeedback:
@@ -102,11 +117,228 @@ class OutputManagerFeedback:
         self._manager.error(message, emoji="🐶", force=True)
 
 
+def show_version() -> None:
+    """Display detailed version information."""
+    console = Console()
+
+    version_panel = Panel(
+        f"[bold cyan]🐶 app-hound[/bold cyan] version [bold green]{VERSION}[/bold green]\n\n"
+        + f"[dim]Python:[/dim] {PYTHON_VERSION}\n"
+        + f"[dim]Platform:[/dim] {sys.platform}\n"
+        + "[dim]Author:[/dim] Rohit Khanduri\n"
+        + "[dim]License:[/dim] MIT",
+        border_style="cyan",
+        padding=(1, 2),
+    )
+    console.print(version_panel)
+
+
+def show_custom_help() -> None:
+    """Display custom Rich-formatted help message."""
+    console = Console()
+
+    # Header
+    header = Panel(
+        "[bold cyan]🐶 app-hound[/bold cyan] — [cyan]deterministic macOS artifact hunter[/cyan]\n\n"
+        + "[dim]A powerful utility to discover, review, and remove application artifacts on macOS.[/dim]",
+        border_style="cyan",
+        padding=(1, 2),
+    )
+    console.print(header)
+    console.print()
+
+    # Usage section
+    console.print("[bold yellow]📋 USAGE[/bold yellow]")
+    usage_table = Table(show_header=False, box=None, padding=(0, 1))
+    usage_table.add_column(style="dim cyan", width=50)
+    usage_table.add_row("  app-hound [OPTIONS]")
+    usage_table.add_row("  app-hound --app APP_NAME [OPTIONS]")
+    usage_table.add_row("  app-hound --input CONFIG_FILE [OPTIONS]")
+    console.print(usage_table)
+    console.print()
+
+    # Core Options
+    console.print("[bold yellow]🎯 CORE OPTIONS[/bold yellow]")
+    core_table = Table(show_header=False, box=None, padding=(0, 1))
+    core_table.add_column("Option", style="green bold", width=22, no_wrap=True)
+    core_table.add_column("Description", style="white")
+    core_table.add_row(
+        "  -h, --help",
+        "Show this help message and exit",
+    )
+    core_table.add_row(
+        "  -a, --app APP",
+        "Scan a single application without a configuration file",
+    )
+    core_table.add_row(
+        "  -i, --input PATH",
+        "Directory with apps_config.json or config file path(s)\n[dim](comma-separated list supported)[/dim]",
+    )
+    core_table.add_row(
+        "  --interactive",
+        "[bold cyan]Enter interactive TUI mode[/bold cyan] to review and select artifacts",
+    )
+    core_table.add_row(
+        "  --execute-plan PATH",
+        "[bold yellow]Execute deletion plan[/bold yellow] from JSON file",
+    )
+    console.print(core_table)
+    console.print()
+
+    # Output Options
+    console.print("[bold yellow]📊 OUTPUT OPTIONS[/bold yellow]")
+    output_table = Table(show_header=False, box=None, padding=(0, 1))
+    output_table.add_column("Option", style="green bold", width=22, no_wrap=True)
+    output_table.add_column("Description", style="white")
+    output_table.add_row(
+        "  -o, --output PATH",
+        "Custom CSV report path\n[dim]Default: ~/.app-hound/audit/audit.csv[/dim]",
+    )
+    output_table.add_row(
+        "  --json-output PATH",
+        "JSON report path with full artifact model\n[dim]Default: ~/.app-hound/audit/artifacts.json[/dim]",
+    )
+    output_table.add_row(
+        "  --plan PATH",
+        "Plan file (JSON) with removal metadata\n[dim]Default: ~/.app-hound/audit/plan.json[/dim]",
+    )
+    output_table.add_row(
+        "  --plan-script PATH",
+        "Shell script with rm commands from plan\n[dim]Default: ~/.app-hound/audit/delete.sh[/dim]",
+    )
+    console.print(output_table)
+    console.print()
+
+    # Scanning Options
+    console.print("[bold yellow]🔍 SCANNING OPTIONS[/bold yellow]")
+    scan_table = Table(show_header=False, box=None, padding=(0, 1))
+    scan_table.add_column("Option", style="green bold", width=26, no_wrap=True)
+    scan_table.add_column("Description", style="white")
+    scan_table.add_row(
+        "  --additional-location",
+        "Extra location to inspect with --app [dim](repeatable)[/dim]",
+    )
+    scan_table.add_row(
+        "  --pattern GLOB",
+        "Additional glob pattern(s) with --app [dim](repeatable)[/dim]",
+    )
+    scan_table.add_row(
+        "  --exclude PATTERN",
+        "Exclude paths matching pattern [dim](repeatable)[/dim]",
+    )
+    scan_table.add_row(
+        "  --deep-home-search",
+        "Enable brute-force home directory search\n[dim](slower but more thorough)[/dim]",
+    )
+    console.print(scan_table)
+    console.print()
+
+    # Installation Options
+    console.print("[bold yellow]⚙️  INSTALLATION OPTIONS[/bold yellow]")
+    install_table = Table(show_header=False, box=None, padding=(0, 1))
+    install_table.add_column("Option", style="green bold", width=24, no_wrap=True)
+    install_table.add_column("Description", style="white")
+    install_table.add_row(
+        "  --installation-path",
+        "Installer path to execute before scanning\n[dim](only used with --app)[/dim]",
+    )
+    install_table.add_row(
+        "  --run-installers",
+        "Execute installer commands from configuration",
+    )
+    console.print(install_table)
+    console.print()
+
+    # Display Options
+    console.print("[bold yellow]🎨 DISPLAY OPTIONS[/bold yellow]")
+    display_table = Table(show_header=False, box=None, padding=(0, 1))
+    display_table.add_column("Option", style="green bold", width=18, no_wrap=True)
+    display_table.add_column("Description", style="white")
+    display_table.add_row(
+        "  --quiet",
+        "Suppress console output (warnings/errors still show)",
+    )
+    display_table.add_row(
+        "  --no-progress",
+        "Disable live progress indicators",
+    )
+    console.print(display_table)
+    console.print()
+
+    # Color Customization
+    console.print("[bold yellow]🌈 COLOR CUSTOMIZATION[/bold yellow]")
+    color_table = Table(show_header=False, box=None, padding=(0, 1))
+    color_table.add_column("Option", style="green bold", width=32, no_wrap=True)
+    color_table.add_column("Description", style="white")
+    color_table.add_row("  --accent-color", "Override accent color")
+    color_table.add_row("  --info-color", "Override info message color")
+    color_table.add_row("  --success-color", "Override success message color")
+    color_table.add_row("  --warning-color", "Override warning message color")
+    color_table.add_row("  --error-color", "Override error message color")
+    color_table.add_row("  --highlight-color", "Override highlight color")
+    color_table.add_row("  --muted-color", "Override muted text color")
+    color_table.add_row("  --progress-bar-color", "Override progress bar color")
+    color_table.add_row(
+        "  --progress-complete-color", "Override progress complete color"
+    )
+    color_table.add_row(
+        "  --progress-description-color", "Override progress description color"
+    )
+    console.print(color_table)
+    console.print()
+
+    # Examples section
+    console.print("[bold yellow]💡 EXAMPLES[/bold yellow]")
+    console.print()
+    console.print("  [dim]Scan single app:[/dim]")
+    console.print('    [cyan]app-hound --app "Slack"[/cyan]')
+    console.print()
+    console.print("  [dim]Interactive mode:[/dim]")
+    console.print('    [cyan]app-hound --app "Discord" --interactive[/cyan]')
+    console.print()
+    console.print("  [dim]From config file:[/dim]")
+    console.print("    [cyan]app-hound --input ./apps_config.json[/cyan]")
+    console.print()
+    console.print("  [dim]Deep search:[/dim]")
+    console.print('    [cyan]app-hound --app "TestApp" --deep-home-search[/cyan]')
+    console.print()
+    console.print("  [dim]Custom output:[/dim]")
+    console.print(
+        '    [cyan]app-hound --app "Chrome" -o ~/Desktop/chrome-audit.csv[/cyan]'
+    )
+    console.print()
+
+    # Footer
+    footer = Panel(
+        "[dim]For more information, visit: [cyan]https://github.com/rohit1901/app-hound[/cyan][/dim]",
+        border_style="dim",
+        padding=(0, 2),
+    )
+    console.print(footer)
+
+
 def parse_arguments() -> argparse.Namespace:
+    # Check if version is requested and show version
+    if "--version" in sys.argv or "-v" in sys.argv:
+        show_version()
+        sys.exit(0)
+
+    # Check if help is requested and show custom help
+    if "-h" in sys.argv or "--help" in sys.argv:
+        show_custom_help()
+        sys.exit(0)
+
     parser = argparse.ArgumentParser(
         prog="app-hound",
+        add_help=False,  # Disable default help to use custom
         formatter_class=argparse.RawTextHelpFormatter,
         description="🐶 app-hound — deterministic macOS artifact hunter",
+    )
+    parser.add_argument(
+        "-v",
+        "--version",
+        action="store_true",
+        help="Show version information and exit",
     )
     parser.add_argument(
         "-i",
@@ -152,6 +384,13 @@ def parse_arguments() -> argparse.Namespace:
         help="Scan a single application without a configuration file.",
     )
     parser.add_argument(
+        "--execute-plan",
+        type=str,
+        default=None,
+        metavar="PATH",
+        help="Execute deletion plan from a JSON file (skips scanning).",
+    )
+    parser.add_argument(
         "--additional-location",
         action="append",
         dest="additional_locations",
@@ -168,6 +407,14 @@ def parse_arguments() -> argparse.Namespace:
         help="Additional glob pattern(s) to evaluate when using --app (repeatable).",
     )
     parser.add_argument(
+        "--exclude",
+        action="append",
+        dest="exclusions",
+        default=[],
+        metavar="PATTERN",
+        help="Exclude paths matching pattern when using --app (repeatable).",
+    )
+    parser.add_argument(
         "--installation-path",
         type=str,
         default=None,
@@ -182,6 +429,11 @@ def parse_arguments() -> argparse.Namespace:
         "--run-installers",
         action="store_true",
         help="Execute installer commands when configuration entries provide an installation_path.",
+    )
+    parser.add_argument(
+        "--interactive",
+        action="store_true",
+        help="Enter interactive mode to review and select artifacts for deletion.",
     )
     parser.add_argument(
         "--quiet",
@@ -229,11 +481,16 @@ def load_app_configurations(
 
     config_paths: list[Path] = []
     for raw in raw_inputs:
-        candidate = Path(raw).expanduser()
-        if candidate.is_file():
-            config_paths.append(candidate)
-        else:
-            config_paths.append(default_config_path(candidate))
+        try:
+            candidate = validate_file_path(raw, must_exist=False)
+            if candidate is None:
+                continue
+            if candidate.is_file():
+                config_paths.append(candidate)
+            else:
+                config_paths.append(default_config_path(candidate))
+        except ValidationError as exc:
+            raise ConfigurationError(f"Invalid input path '{raw}': {exc}") from exc
 
     missing = [path for path in config_paths if not path.exists()]
     if missing:
@@ -248,21 +505,56 @@ def load_app_configurations(
 
 
 def build_single_app_configuration(args: ParsedArgs) -> AppConfiguration:
-    additional_locations = tuple(
-        Path(path).expanduser() for path in args.argv.additional_locations
-    )
-    patterns = tuple(pattern for pattern in args.argv.patterns)
-    installation_path = (
-        Path(args.argv.installation_path).expanduser()
-        if args.argv.installation_path
-        else None
-    )
+    # Validate app name
+    try:
+        app_name = validate_app_name(args.argv.app)
+    except ValidationError as exc:
+        raise ConfigurationError(f"Invalid application name: {exc}") from exc
+
+    # Validate additional locations
+    validated_locations = []
+    for path in args.argv.additional_locations:
+        try:
+            validated_path = validate_file_path(path, must_exist=False)
+            if validated_path:
+                validated_locations.append(validated_path)
+        except ValidationError as exc:
+            raise ConfigurationError(f"Invalid location '{path}': {exc}") from exc
+
+    # Validate patterns
+    validated_patterns = []
+    for pattern in args.argv.patterns:
+        try:
+            validated_pattern = validate_glob_pattern(pattern)
+            validated_patterns.append(validated_pattern)
+        except ValidationError as exc:
+            raise ConfigurationError(f"Invalid pattern '{pattern}': {exc}") from exc
+
+    # Validate exclusions
+    validated_exclusions = []
+    for exclusion in args.argv.exclusions:
+        try:
+            validated_exclusion = validate_glob_pattern(exclusion)
+            validated_exclusions.append(validated_exclusion)
+        except ValidationError as exc:
+            raise ConfigurationError(f"Invalid exclusion '{exclusion}': {exc}") from exc
+
+    # Validate installation path
+    installation_path = None
+    if args.argv.installation_path:
+        try:
+            installation_path = validate_file_path(
+                args.argv.installation_path, must_exist=False
+            )
+        except ValidationError as exc:
+            raise ConfigurationError(f"Invalid installation path: {exc}") from exc
 
     return AppConfiguration(
-        name=args.argv.app.strip(),
-        additional_locations=additional_locations,
+        name=app_name,
+        additional_locations=tuple(validated_locations),
         installation_path=installation_path,
-        patterns=patterns,
+        patterns=tuple(validated_patterns),
+        exclusions=tuple(validated_exclusions),
         deep_home_search=args.argv.deep_home_search,
     )
 
@@ -465,11 +757,109 @@ def main() -> None:
     if args.palette_overrides:
         manager.update_palette(**args.palette_overrides)
 
-    ensure_directories_exist(AUDIT_DIR, args.csv_output_path.parent)
-    if args.json_output_path:
-        ensure_directories_exist(args.json_output_path.parent)
-    if args.plan_output_path:
-        ensure_directories_exist(args.plan_output_path.parent)
+    ensure_directories_exist(
+        AUDIT_DIR,
+        args.csv_output_path.parent,
+        args.json_output_path.parent,
+        args.plan_output_path.parent,
+    )
+
+    # Handle --execute-plan mode
+    if args_ns.execute_plan:
+        from rich.prompt import Confirm
+
+        from app_hound.interactive import ConsoleAdapter
+        from app_hound.removal import ArtifactRemover
+
+        try:
+            plan_path = validate_file_path(args_ns.execute_plan, must_exist=True)
+            if plan_path is None:
+                manager.error("Plan file path is required", emoji="🐶", force=True)
+                raise SystemExit(1)
+
+            manager.highlight(f"Loading deletion plan from {plan_path}", emoji="🐶")
+            plan = DeletionPlan.from_file(plan_path)
+
+            enabled = plan.enabled_entries()
+            if not enabled:
+                manager.warning(
+                    "No enabled entries in plan. Nothing to delete.", emoji="🐶"
+                )
+                raise SystemExit(0)
+
+            manager.info(
+                f"Plan contains {len(enabled)} enabled entries for deletion", emoji="📋"
+            )
+
+            # Ask for confirmation
+            console = Console()
+
+            if not Confirm.ask(
+                "[bold yellow]⚠️  Execute deletion plan?[/bold yellow]", default=False
+            ):
+                manager.info("Execution cancelled.", emoji="🐶")
+                raise SystemExit(0)
+
+            # Offer dry-run
+            dry_run = Confirm.ask(
+                "[yellow]Perform dry run first?[/yellow]", default=True
+            )
+
+            # Create remover with console adapter
+            console_adapter = ConsoleAdapter(console)
+            remover = ArtifactRemover(output=console_adapter)
+
+            if dry_run:
+                console.print()
+                console.print(
+                    "[bold yellow]🔍 Dry Run - No files will be deleted[/bold yellow]"
+                )
+                console.print()
+                report = remover.remove(enabled, dry_run=True)
+                console.print()
+                console.print(f"[green]✓ Would delete:[/green] {len(report.succeeded)}")
+                console.print(f"[red]✗ Would fail:[/red] {len(report.failed)}")
+                console.print()
+
+                if not Confirm.ask(
+                    "[bold red]Proceed with actual deletion?[/bold red]",
+                    default=False,
+                ):
+                    manager.info("Execution cancelled.", emoji="🐶")
+                    raise SystemExit(0)
+
+            # Actual deletion
+            console.print()
+            console.print("[bold red]🗑️  Deleting files...[/bold red]")
+            console.print()
+            report = remover.remove(enabled, dry_run=False, prompt=False)
+
+            # Show results
+            console.print()
+            console.print("[bold]Results:[/bold]")
+            console.print(f"[green]✓ Deleted:[/green] {len(report.succeeded)}")
+            console.print(f"[red]✗ Failed:[/red] {len(report.failed)}")
+            console.print(f"[yellow]⊘ Skipped:[/yellow] {len(report.skipped)}")
+
+            if report.failed:
+                console.print()
+                console.print("[bold red]Failed items:[/bold red]")
+                for entry, error in report.failed:
+                    console.print(f"  [red]✗[/red] {entry.path}")
+                    console.print(f"    [dim]{error}[/dim]")
+
+            manager.finalize("app-hound says: Deletion complete! 🦴")
+            raise SystemExit(0)
+
+        except FileNotFoundError as exc:
+            manager.error(str(exc), emoji="🐶", force=True)
+            raise SystemExit(1)
+        except ValueError as exc:
+            manager.error(f"Invalid plan file: {exc}", emoji="🐶", force=True)
+            raise SystemExit(1)
+        except Exception as exc:
+            manager.error(f"Error executing plan: {exc}", emoji="🐶", force=True)
+            raise SystemExit(1)
 
     manager.highlight("app-hound is on the trail!", emoji="🐶")
 
@@ -497,14 +887,37 @@ def main() -> None:
         deep_home_search_default=args_ns.deep_home_search,
     )
 
+    # If interactive mode is enabled, enter TUI for artifact selection
+    if args_ns.interactive:
+        manager.finalize("Entering interactive mode... 🎯")
+        console = Console()
+        removal_report = run_interactive_mode(results, console)
+
+        if removal_report:
+            manager.highlight(
+                "Interactive session complete: "
+                + f"{len(removal_report.succeeded)} deleted, "
+                + f"{len(removal_report.failed)} failed, "
+                + f"{len(removal_report.skipped)} skipped",
+                emoji="✓",
+            )
+        else:
+            manager.info("Interactive session cancelled.", emoji="🐶")
+
+        # Still write reports even in interactive mode
+        manager.info("Writing reports...", emoji="📝")
+
     with manager.status(f"Compiling reports → {args.csv_output_path}"):
         write_csv_report(results, args.csv_output_path, manager)
-        # Always write the artifact JSON report to the default location (or custom if provided)
+
+        # Write artifact JSON report
         write_json_report(
             results, args.json_output_path, manager=manager, label="artifact report"
         )
-        # Always build and write the deletion plan JSON and shell script
+
+        # Build and write the deletion plan JSON and shell script
         plan = DeletionPlan.from_scan_results(results)
+
         ensure_directories_exist(args.plan_output_path.parent)
         with args.plan_output_path.open("w", encoding="utf-8") as handle:
             handle.write(plan.to_json(indent=2))
@@ -512,6 +925,7 @@ def main() -> None:
             str(args.plan_output_path), palette_key="highlight"
         )
         manager.success(f"Wrote plan JSON to {styled_plan}", emoji="🐶")
+
         ensure_directories_exist(args.plan_script_output_path.parent)
         script_path = write_shell_script(
             plan,

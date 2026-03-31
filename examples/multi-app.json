@@ -1,0 +1,64 @@
+{
+  "apps": [
+    {
+      "name": "Slack",
+      "additional_locations": [
+        "~/Library/Application Support/Slack",
+        "~/Library/Caches/com.tinyspeck.slackmacgap",
+        "~/Library/Preferences/com.tinyspeck.slackmacgap.plist"
+      ]
+    },
+    {
+      "name": "Discord",
+      "additional_locations": [
+        "~/Library/Application Support/discord",
+        "~/Library/Caches/com.hnc.Discord"
+      ]
+    },
+    {
+      "name": "Google Chrome",
+      "additional_locations": [
+        "~/Library/Application Support/Google/Chrome",
+        "~/Library/Caches/Google/Chrome"
+      ],
+      "patterns": [
+        "~/Library/Application Support/Google/*"
+      ]
+    },
+    {
+      "name": "Visual Studio Code",
+      "additional_locations": [
+        "~/Library/Application Support/Code",
+        "~/.vscode"
+      ]
+    },
+    {
+      "name": "Docker",
+      "additional_locations": [
+        "~/Library/Application Support/Docker",
+        "~/Library/Caches/com.docker.docker",
+        "~/Library/Preferences/com.docker.docker.plist",
+        "~/Library/Logs/Docker"
+      ],
+      "deep_home_search": false
+    },
+    {
+      "name": "Zoom",
+      "additional_locations": [
+        "~/Library/Application Support/zoom.us",
+        "~/Library/Caches/us.zoom.xos",
+        "~/Library/Preferences/us.zoom.xos.plist",
+        "~/Library/Logs/zoom.us"
+      ]
+    },
+    {
+      "name": "Spotify",
+      "additional_locations": [
+        "~/Library/Application Support/Spotify",
+        "~/Library/Caches/com.spotify.client",
+        "~/Library/Preferences/com.spotify.client.plist",
+        "~/Library/Saved Application State/com.spotify.client.savedState"
+      ]
+    }
+  ]
+}

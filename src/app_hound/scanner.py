@@ -31,7 +31,7 @@ class Filesystem(Protocol):
 
     def is_symlink(self, path: Path) -> bool: ...
 
-    def stat(self, path: Path): ...
+    def stat(self, path: Path) -> os.stat_result | None: ...
 
     def is_writable(self, path: Path) -> bool: ...
 
@@ -55,7 +55,7 @@ class LocalFilesystem(Filesystem):
     def is_symlink(self, path: Path) -> bool:
         return path.is_symlink()
 
-    def stat(self, path: Path):
+    def stat(self, path: Path) -> os.stat_result:
         return path.stat()
 
     def is_writable(self, path: Path) -> bool:
@@ -122,6 +122,10 @@ class Scanner:
                 continue
             seen_paths.add(canonical)
 
+            # Skip if path matches any exclusion pattern
+            if self._is_excluded(candidate.path, configuration.exclusions):
+                continue
+
             artifact, error = self._materialize(configuration.name, candidate)
             include_missing = (
                 not artifact.exists and candidate.scope == ArtifactScope.CONFIGURED
@@ -154,12 +158,15 @@ class Scanner:
         if exists:
             try:
                 stats = self._fs.stat(resolved_path)
-                if kind == ArtifactKind.FILE and not self._fs.is_symlink(resolved_path):
-                    size_bytes = stats.st_size  # type: ignore[attr-defined]
-                last_modified = datetime.fromtimestamp(
-                    stats.st_mtime,  # type: ignore[attr-defined]
-                    tz=timezone.utc,
-                )
+                if stats is not None:
+                    if kind == ArtifactKind.FILE and not self._fs.is_symlink(
+                        resolved_path
+                    ):
+                        size_bytes = stats.st_size
+                    last_modified = datetime.fromtimestamp(
+                        stats.st_mtime,
+                        tz=timezone.utc,
+                    )
             except OSError as exc:
                 error_message = f"Failed to read metadata for {resolved_path}: {exc}"
 
@@ -192,6 +199,39 @@ class Scanner:
         if self._fs.is_file(path):
             return ArtifactKind.FILE
         return ArtifactKind.UNKNOWN
+
+    def _is_excluded(self, path: Path, exclusions: tuple[str, ...]) -> bool:
+        """
+        Check if a path matches any exclusion pattern.
+
+        Args:
+            path: Path to check
+            exclusions: Tuple of glob patterns to exclude
+
+        Returns:
+            True if path matches any exclusion pattern, False otherwise
+        """
+        if not exclusions:
+            return False
+
+        from fnmatch import fnmatch
+
+        path_str = str(path)
+        for pattern in exclusions:
+            # Expand user home directory in pattern
+            expanded_pattern = pattern.replace("~", str(self._fs.home()))
+            # Check both the path and resolved path against the pattern
+            if fnmatch(path_str, expanded_pattern):
+                return True
+            # Also check against resolved path
+            try:
+                resolved = str(self._fs.resolve(path))
+                if fnmatch(resolved, expanded_pattern):
+                    return True
+            except Exception:
+                # If resolution fails, just skip this check
+                pass
+        return False
 
     def _build_candidates(
         self,

@@ -7,7 +7,7 @@ from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 from .domain import (
     Artifact,
@@ -94,6 +94,95 @@ class DeletionPlan:
 
     def to_json(self, *, indent: int | None = 2) -> str:
         return json.dumps(self.to_dict(), indent=indent)
+
+    @classmethod
+    def from_json(cls, json_str: str) -> DeletionPlan:
+        """
+        Load a DeletionPlan from a JSON string.
+
+        Args:
+            json_str: JSON string containing serialized plan
+
+        Returns:
+            DeletionPlan instance
+
+        Raises:
+            ValueError: If JSON is invalid or missing required fields
+        """
+        try:
+            data = json.loads(json_str)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Invalid JSON: {exc}") from exc
+
+        if not isinstance(data, dict):
+            raise ValueError("JSON must contain an object")
+
+        # Parse generated_at timestamp
+        generated_at_str = data.get("generated_at")
+        if not generated_at_str:
+            raise ValueError("Missing 'generated_at' field")
+
+        try:
+            generated_at = datetime.fromisoformat(generated_at_str)
+        except (ValueError, TypeError) as exc:
+            raise ValueError(f"Invalid 'generated_at' timestamp: {exc}") from exc
+
+        # Parse entries
+        entries_data = data.get("entries", [])
+        if not isinstance(entries_data, list):
+            raise ValueError("'entries' must be a list")
+
+        entries = []
+        for idx, entry_data in enumerate(entries_data):
+            try:
+                entry = cls._entry_from_dict(entry_data)
+                entries.append(entry)
+            except (ValueError, KeyError, TypeError) as exc:
+                raise ValueError(f"Invalid entry at index {idx}: {exc}") from exc
+
+        return cls(
+            generated_at=generated_at,
+            entries=tuple(entries),
+        )
+
+    @classmethod
+    def from_file(cls, path: Path | str) -> DeletionPlan:
+        """
+        Load a DeletionPlan from a JSON file.
+
+        Args:
+            path: Path to JSON file
+
+        Returns:
+            DeletionPlan instance
+
+        Raises:
+            FileNotFoundError: If file doesn't exist
+            ValueError: If JSON is invalid
+        """
+        file_path = Path(path)
+        if not file_path.exists():
+            raise FileNotFoundError(f"Plan file not found: {file_path}")
+
+        json_str = file_path.read_text(encoding="utf-8")
+        return cls.from_json(json_str)
+
+    @staticmethod
+    def _entry_from_dict(data: dict[str, Any]) -> PlanEntry:
+        """Convert a dictionary to a PlanEntry."""
+        return PlanEntry(
+            app_name=data["app_name"],
+            path=Path(data["path"]),
+            kind=ArtifactKind(data["kind"]),
+            category=ArtifactCategory(data["category"]),
+            scope=ArtifactScope(data["scope"]),
+            exists=data["exists"],
+            writable=data.get("writable"),
+            removal_safety=RemovalSafety(data["removal_safety"]),
+            notes=tuple(data.get("notes", [])),
+            removal_instructions=tuple(data.get("removal_instructions", [])),
+            enabled=data.get("enabled", False),
+        )
 
     def enabled_entries(self) -> tuple[PlanEntry, ...]:
         return tuple(entry for entry in self.entries if entry.enabled)

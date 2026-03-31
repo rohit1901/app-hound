@@ -1,0 +1,24 @@
+{
+  "apps": [
+    {
+      "name": "Google Chrome",
+      "additional_locations": [
+        "/Applications/Google Chrome.app",
+        "~/Library/Application Support/Google/Chrome",
+        "~/Library/Caches/Google/Chrome",
+        "~/Library/Caches/com.google.Chrome",
+        "~/Library/Caches/com.google.Chrome.helper",
+        "~/Library/Preferences/com.google.Chrome.plist",
+        "~/Library/Saved Application State/com.google.Chrome.savedState",
+        "~/Library/Google/GoogleSoftwareUpdate",
+        "~/Library/LaunchAgents/com.google.keystone.agent.plist"
+      ],
+      "patterns": [
+        "~/Library/Preferences/*chrome*",
+        "~/Library/Caches/*chrome*",
+        "~/Library/Application Support/Google/*"
+      ],
+      "deep_home_search": false
+    }
+  ]
+}

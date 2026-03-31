@@ -22,6 +22,7 @@ class AppConfiguration:
     installation_path: Path | None = None
     deep_home_search: bool = False
     patterns: tuple[str, ...] = field(default_factory=tuple)
+    exclusions: tuple[str, ...] = field(default_factory=tuple)
 
     @classmethod
     def from_mapping(
@@ -42,6 +43,7 @@ class AppConfiguration:
             base_dir=base_dir,
         )
         patterns = _normalise_string_tuple(raw.get("patterns"))
+        exclusions = _normalise_string_tuple(raw.get("exclusions"))
         installation_path = _normalise_optional_path(
             raw.get("installation_path"),
             base_dir=base_dir,
@@ -56,6 +58,7 @@ class AppConfiguration:
             installation_path=installation_path,
             deep_home_search=deep_home_search,
             patterns=patterns,
+            exclusions=exclusions,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -68,6 +71,7 @@ class AppConfiguration:
             else None,
             "deep_home_search": self.deep_home_search,
             "patterns": list(self.patterns),
+            "exclusions": list(self.exclusions),
         }
 
 

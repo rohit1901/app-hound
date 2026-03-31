@@ -1,0 +1,24 @@
+{
+  "apps": [
+    {
+      "name": "Discord",
+      "additional_locations": [
+        "/Applications/Discord.app",
+        "~/Library/Application Support/discord",
+        "~/Library/Caches/com.hnc.Discord",
+        "~/Library/Caches/com.hnc.Discord.ShipIt",
+        "~/Library/Preferences/com.hnc.Discord.plist",
+        "~/Library/Preferences/com.hnc.Discord.helper.plist",
+        "~/Library/Saved Application State/com.hnc.Discord.savedState",
+        "~/Library/Logs/Discord",
+        "~/Library/WebKit/com.hnc.Discord",
+        "~/Library/Containers/com.hnc.Discord"
+      ],
+      "patterns": [
+        "~/Library/Preferences/*discord*",
+        "~/Library/Caches/*discord*"
+      ],
+      "deep_home_search": false
+    }
+  ]
+}
