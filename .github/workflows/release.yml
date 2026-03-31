@@ -9,14 +9,16 @@ on:
 
 permissions:
   contents: write
+  packages: write
 
 jobs:
   bump-release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
-          token: ${{ secrets.AH_PAT_STRONG }}
+          token: ${{ secrets.AH_PAT_STRONG || secrets.GITHUB_TOKEN }}
           fetch-depth: 0
           persist-credentials: true
 
@@ -31,44 +33,103 @@ jobs:
           version: "2.0.0"
 
       - name: Import GPG key (no passphrase)
-        run: echo "${GPG_PRIVATE_KEY}" | gpg --batch --import
+        run: |
+          if [ -n "$GPG_PRIVATE_KEY" ]; then
+            echo "${GPG_PRIVATE_KEY}" | gpg --batch --import
+            echo "GPG_KEY_AVAILABLE=true" >> $GITHUB_ENV
+          else
+            echo "GPG_KEY_AVAILABLE=false" >> $GITHUB_ENV
+            echo "Warning: GPG key not available, commits will not be signed"
+          fi
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
 
       - name: Configure Git for signed commits
         run: |
-          KEY_ID=$(gpg --list-secret-keys --keyid-format=long | grep '^sec' | awk '{print $2}' | awk -F'/' '{print $2}')
           git config --global user.name 'GitHub Actions Bot'
           git config --global user.email 'r.khanduri+github.actions.bot@nimbus-tech.de'
-          git config --global user.signingkey $KEY_ID
-          git config --global commit.gpgsign true
-          git config --global gpg.program gpg
 
-      - name: Bump version and sign commit
+          # Only configure GPG signing if GPG key is available
+          if [ "$GPG_KEY_AVAILABLE" = "true" ]; then
+            KEY_ID=$(gpg --list-secret-keys --keyid-format=long | grep '^sec' | awk '{print $2}' | awk -F'/' '{print $2}' | head -n1)
+            git config --global user.signingkey $KEY_ID
+            git config --global commit.gpgsign true
+            git config --global gpg.program gpg
+            echo "✓ GPG signing enabled with key: $KEY_ID"
+          else
+            git config --global commit.gpgsign false
+            echo "✗ GPG signing disabled - no key available"
+          fi
+
+      - name: Bump version and commit
         run: |
           poetry version ${{ github.event.inputs.version }}
           git add pyproject.toml
-          git commit -S -m "Bump: version ${{ github.event.inputs.version }}"
-          git log --show-signature -1   # Debug output
+
+          # Commit with or without GPG signature depending on configuration
+          if [ "$(git config --get commit.gpgsign)" = "true" ]; then
+            git commit -S -m "chore: bump version to ${{ github.event.inputs.version }}"
+            echo "Commit details (with signature):"
+            git log --show-signature -1
+          else
+            git commit -m "chore: bump version to ${{ github.event.inputs.version }}"
+            echo "Commit details:"
+            git log -1
+          fi
 
       - name: Update local main from remote
         run: |
+          echo "Fetching latest changes from origin/main..."
           git fetch origin main
-          git rebase origin/main
+          echo "Rebasing onto origin/main..."
+          git rebase origin/main || {
+            echo "Rebase failed - aborting"
+            git rebase --abort
+            exit 1
+          }
 
       - name: Push version bump
+        env:
+          GITHUB_TOKEN: ${{ secrets.AH_PAT_STRONG || secrets.GITHUB_TOKEN }}
         run: |
-          git push origin HEAD:${{ github.ref_name }}
+          echo "Pushing to branch: ${{ github.ref_name }}"
+          # Use the token directly in the URL for authentication
+          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
+          git push origin HEAD:${{ github.ref_name }} || {
+            echo "Push failed - attempting force push with lease"
+            git push --force-with-lease origin HEAD:${{ github.ref_name }}
+          }
 
       - name: Build distribution (sdist and wheel)
         run: |
+          echo "Building distribution packages..."
           poetry build
+          echo "Built packages:"
+          ls -lh dist/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.event.inputs.version }}
+          name: Release v${{ github.event.inputs.version }}
           generate_release_notes: true
-          files: dist/*.tar.gz # <-- uploads the sdist tarball
+          files: |
+            dist/*.tar.gz
+            dist/*.whl
+          fail_on_unmatched_files: false
         env:
-          GITHUB_TOKEN: ${{ secrets.AH_PAT_STRONG }}
+          GITHUB_TOKEN: ${{ secrets.AH_PAT_STRONG || secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        if: success()
+        run: |
+          echo "## ✅ Release Successful" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** v${{ github.event.inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** $(git rev-parse HEAD)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 Distribution Files" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          ls -lh dist/ >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
