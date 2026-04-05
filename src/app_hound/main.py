@@ -152,7 +152,7 @@ def show_custom_help() -> None:
     usage_table = Table(show_header=False, box=None, padding=(0, 1))
     usage_table.add_column(style="dim cyan", width=50)
     usage_table.add_row("  app-hound [OPTIONS]")
-    usage_table.add_row("  app-hound --app APP_NAME [OPTIONS]")
+    usage_table.add_row("  app-hound -a APP_NAME [OPTIONS]")
     usage_table.add_row("  app-hound --input CONFIG_FILE [OPTIONS]")
     console.print(usage_table)
     console.print()
@@ -167,7 +167,7 @@ def show_custom_help() -> None:
         "Show this help message and exit",
     )
     core_table.add_row(
-        "  -a, --app APP",
+        "  -a, --app, --app-name APP",
         "Scan a single application without a configuration file",
     )
     core_table.add_row(
@@ -216,11 +216,11 @@ def show_custom_help() -> None:
     scan_table.add_column("Description", style="white")
     scan_table.add_row(
         "  --additional-location",
-        "Extra location to inspect with --app [dim](repeatable)[/dim]",
+        "Extra location to inspect with -a [dim](repeatable)[/dim]",
     )
     scan_table.add_row(
         "  --pattern GLOB",
-        "Additional glob pattern(s) with --app [dim](repeatable)[/dim]",
+        "Additional glob pattern(s) with -a [dim](repeatable)[/dim]",
     )
     scan_table.add_row(
         "  --exclude PATTERN",
@@ -240,7 +240,7 @@ def show_custom_help() -> None:
     install_table.add_column("Description", style="white")
     install_table.add_row(
         "  --installation-path",
-        "Installer path to execute before scanning\n[dim](only used with --app)[/dim]",
+        "Installer path to execute before scanning\n[dim](only used with -a)[/dim]",
     )
     install_table.add_row(
         "  --run-installers",
@@ -291,20 +291,24 @@ def show_custom_help() -> None:
     console.print("[bold yellow]💡 EXAMPLES[/bold yellow]")
     console.print()
     console.print("  [dim]Scan single app:[/dim]")
-    console.print('    [cyan]app-hound --app "Slack"[/cyan]')
+    console.print('    [cyan]app-hound -a "Slack"[/cyan]')
     console.print()
     console.print("  [dim]Interactive mode:[/dim]")
-    console.print('    [cyan]app-hound --app "Discord" --interactive[/cyan]')
+    console.print('    [cyan]app-hound -a "Discord" --interactive[/cyan]')
     console.print()
     console.print("  [dim]From config file:[/dim]")
     console.print("    [cyan]app-hound --input ./apps_config.json[/cyan]")
     console.print()
     console.print("  [dim]Deep search:[/dim]")
-    console.print('    [cyan]app-hound --app "TestApp" --deep-home-search[/cyan]')
+    console.print('    [cyan]app-hound -a "TestApp" --deep-home-search[/cyan]')
     console.print()
     console.print("  [dim]Custom output:[/dim]")
     console.print(
-        '    [cyan]app-hound --app "Chrome" -o ~/Desktop/chrome-audit.csv[/cyan]'
+        '    [cyan]app-hound -a "Chrome" -o ~/Desktop/chrome-audit.csv[/cyan]'
+    )
+    console.print()
+    console.print(
+        "  [dim italic]Note: -a, --app, and --app-name are interchangeable[/dim italic]"
     )
     console.print()
 
@@ -396,7 +400,7 @@ def parse_arguments() -> argparse.Namespace:
         dest="additional_locations",
         default=[],
         metavar="PATH",
-        help="Extra location to inspect when using --app (repeatable).",
+        help="Extra location to inspect when using -a (repeatable).",
     )
     parser.add_argument(
         "--pattern",
@@ -404,7 +408,7 @@ def parse_arguments() -> argparse.Namespace:
         dest="patterns",
         default=[],
         metavar="GLOB",
-        help="Additional glob pattern(s) to evaluate when using --app (repeatable).",
+        help="Additional glob pattern(s) to evaluate when using -a (repeatable).",
     )
     parser.add_argument(
         "--exclude",
@@ -412,13 +416,13 @@ def parse_arguments() -> argparse.Namespace:
         dest="exclusions",
         default=[],
         metavar="PATTERN",
-        help="Exclude paths matching pattern when using --app (repeatable).",
+        help="Exclude paths matching pattern when using -a (repeatable).",
     )
     parser.add_argument(
         "--installation-path",
         type=str,
         default=None,
-        help="Installer path to execute before scanning (only used with --app).",
+        help="Installer path to execute before scanning (only used with -a).",
     )
     parser.add_argument(
         "--deep-home-search",
