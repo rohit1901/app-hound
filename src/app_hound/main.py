@@ -154,7 +154,7 @@ def show_custom_help() -> None:
     usage_table.add_row("  app-hound [OPTIONS]")
     usage_table.add_row("  app-hound -a APP_NAME [OPTIONS]")
     usage_table.add_row("  app-hound --app=APP_NAME [OPTIONS]")
-    usage_table.add_row("  app-hound --input CONFIG_FILE [OPTIONS]")
+    usage_table.add_row("  app-hound -i CONFIG_FILE [OPTIONS]")
     console.print(usage_table)
     console.print()
 
@@ -176,7 +176,7 @@ def show_custom_help() -> None:
         "Scan a single application (long form with equals)",
     )
     core_table.add_row(
-        "  -i, --input PATH",
+        "  -i PATH, --input=PATH",
         "Directory with apps_config.json or config file path(s)\n[dim](comma-separated list supported)[/dim]",
     )
     core_table.add_row(
@@ -184,7 +184,7 @@ def show_custom_help() -> None:
         "[bold cyan]Enter interactive TUI mode[/bold cyan] to review and select artifacts",
     )
     core_table.add_row(
-        "  --execute-plan PATH",
+        "  --execute-plan=PATH",
         "[bold yellow]Execute deletion plan[/bold yellow] from JSON file",
     )
     console.print(core_table)
@@ -193,22 +193,22 @@ def show_custom_help() -> None:
     # Output Options
     console.print("[bold yellow]📊 OUTPUT OPTIONS[/bold yellow]")
     output_table = Table(show_header=False, box=None, padding=(0, 1))
-    output_table.add_column("Option", style="green bold", width=22, no_wrap=True)
+    output_table.add_column("Option", style="green bold", width=24, no_wrap=True)
     output_table.add_column("Description", style="white")
     output_table.add_row(
-        "  -o, --output PATH",
+        "  -o PATH, --output=PATH",
         "Custom CSV report path\n[dim]Default: ~/.app-hound/audit/audit.csv[/dim]",
     )
     output_table.add_row(
-        "  --json-output PATH",
+        "  --json-output=PATH",
         "JSON report path with full artifact model\n[dim]Default: ~/.app-hound/audit/artifacts.json[/dim]",
     )
     output_table.add_row(
-        "  --plan PATH",
+        "  --plan=PATH",
         "Plan file (JSON) with removal metadata\n[dim]Default: ~/.app-hound/audit/plan.json[/dim]",
     )
     output_table.add_row(
-        "  --plan-script PATH",
+        "  --plan-script=PATH",
         "Shell script with rm commands from plan\n[dim]Default: ~/.app-hound/audit/delete.sh[/dim]",
     )
     console.print(output_table)
@@ -217,18 +217,18 @@ def show_custom_help() -> None:
     # Scanning Options
     console.print("[bold yellow]🔍 SCANNING OPTIONS[/bold yellow]")
     scan_table = Table(show_header=False, box=None, padding=(0, 1))
-    scan_table.add_column("Option", style="green bold", width=26, no_wrap=True)
+    scan_table.add_column("Option", style="green bold", width=30, no_wrap=True)
     scan_table.add_column("Description", style="white")
     scan_table.add_row(
-        "  --additional-location",
+        "  --additional-location=PATH",
         "Extra location to inspect with -a [dim](repeatable)[/dim]",
     )
     scan_table.add_row(
-        "  --pattern GLOB",
+        "  --pattern=GLOB",
         "Additional glob pattern(s) with -a [dim](repeatable)[/dim]",
     )
     scan_table.add_row(
-        "  --exclude PATTERN",
+        "  --exclude=PATTERN",
         "Exclude paths matching pattern [dim](repeatable)[/dim]",
     )
     scan_table.add_row(
@@ -241,10 +241,10 @@ def show_custom_help() -> None:
     # Installation Options
     console.print("[bold yellow]⚙️  INSTALLATION OPTIONS[/bold yellow]")
     install_table = Table(show_header=False, box=None, padding=(0, 1))
-    install_table.add_column("Option", style="green bold", width=24, no_wrap=True)
+    install_table.add_column("Option", style="green bold", width=28, no_wrap=True)
     install_table.add_column("Description", style="white")
     install_table.add_row(
-        "  --installation-path",
+        "  --installation-path=PATH",
         "Installer path to execute before scanning\n[dim](only used with -a)[/dim]",
     )
     install_table.add_row(
@@ -273,23 +273,26 @@ def show_custom_help() -> None:
     # Color Customization
     console.print("[bold yellow]🌈 COLOR CUSTOMIZATION[/bold yellow]")
     color_table = Table(show_header=False, box=None, padding=(0, 1))
-    color_table.add_column("Option", style="green bold", width=32, no_wrap=True)
+    color_table.add_column("Option", style="green bold", width=36, no_wrap=True)
     color_table.add_column("Description", style="white")
-    color_table.add_row("  --accent-color", "Override accent color")
-    color_table.add_row("  --info-color", "Override info message color")
-    color_table.add_row("  --success-color", "Override success message color")
-    color_table.add_row("  --warning-color", "Override warning message color")
-    color_table.add_row("  --error-color", "Override error message color")
-    color_table.add_row("  --highlight-color", "Override highlight color")
-    color_table.add_row("  --muted-color", "Override muted text color")
-    color_table.add_row("  --progress-bar-color", "Override progress bar color")
+    color_table.add_row("  --accent-color=COLOR", "Override accent color")
+    color_table.add_row("  --info-color=COLOR", "Override info message color")
+    color_table.add_row("  --success-color=COLOR", "Override success message color")
+    color_table.add_row("  --warning-color=COLOR", "Override warning message color")
+    color_table.add_row("  --error-color=COLOR", "Override error message color")
+    color_table.add_row("  --highlight-color=COLOR", "Override highlight color")
+    color_table.add_row("  --muted-color=COLOR", "Override muted text color")
+    color_table.add_row("  --progress-bar-color=COLOR", "Override progress bar color")
     color_table.add_row(
-        "  --progress-complete-color", "Override progress complete color"
+        "  --progress-complete-color=COLOR", "Override progress complete color"
     )
     color_table.add_row(
-        "  --progress-description-color", "Override progress description color"
+        "  --progress-description-color=COLOR", "Override progress description color"
     )
     console.print(color_table)
+    console.print(
+        "  [dim italic]Accepts: named colors (red, green), hex (#FF5733), RGB (rgb(255,87,51))[/dim italic]"
+    )
     console.print()
 
     # Examples section
@@ -305,7 +308,7 @@ def show_custom_help() -> None:
     console.print('    [cyan]app-hound -a "Discord" --interactive[/cyan]')
     console.print()
     console.print("  [dim]From config file:[/dim]")
-    console.print("    [cyan]app-hound --input ./apps_config.json[/cyan]")
+    console.print("    [cyan]app-hound -i ./apps_config.json[/cyan]")
     console.print()
     console.print("  [dim]Deep search:[/dim]")
     console.print('    [cyan]app-hound -a "TestApp" --deep-home-search[/cyan]')
@@ -315,8 +318,18 @@ def show_custom_help() -> None:
         '    [cyan]app-hound -a "Chrome" -o ~/Desktop/chrome-audit.csv[/cyan]'
     )
     console.print()
+    console.print("  [dim]With additional locations:[/dim]")
     console.print(
-        "  [dim italic]Note: Use -a VALUE (space) or --app=VALUE (equals)[/dim italic]"
+        '    [cyan]app-hound -a "VSCode" --additional-location=~/.vscode[/cyan]'
+    )
+    console.print()
+    console.print("  [dim]Custom colors:[/dim]")
+    console.print(
+        '    [cyan]app-hound -a "Slack" --accent-color=purple --success-color="#00FF00"[/cyan]'
+    )
+    console.print()
+    console.print(
+        "  [dim italic]Note: Short options use space (-a VALUE), long options use equals (--app=VALUE)[/dim italic]"
     )
     console.print()
 
