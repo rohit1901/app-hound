@@ -160,7 +160,7 @@ def show_custom_help() -> None:
     # Core Options
     console.print("[bold yellow]🎯 CORE OPTIONS[/bold yellow]")
     core_table = Table(show_header=False, box=None, padding=(0, 1))
-    core_table.add_column("Option", style="green bold", width=22, no_wrap=True)
+    core_table.add_column("Option", style="green bold", width=28, no_wrap=True)
     core_table.add_column("Description", style="white")
     core_table.add_row(
         "  -h, --help",
