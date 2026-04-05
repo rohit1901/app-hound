@@ -153,6 +153,7 @@ def show_custom_help() -> None:
     usage_table.add_column(style="dim cyan", width=50)
     usage_table.add_row("  app-hound [OPTIONS]")
     usage_table.add_row("  app-hound -a APP_NAME [OPTIONS]")
+    usage_table.add_row("  app-hound --app=APP_NAME [OPTIONS]")
     usage_table.add_row("  app-hound --input CONFIG_FILE [OPTIONS]")
     console.print(usage_table)
     console.print()
@@ -160,15 +161,19 @@ def show_custom_help() -> None:
     # Core Options
     console.print("[bold yellow]🎯 CORE OPTIONS[/bold yellow]")
     core_table = Table(show_header=False, box=None, padding=(0, 1))
-    core_table.add_column("Option", style="green bold", width=28, no_wrap=True)
+    core_table.add_column("Option", style="green bold", width=30, no_wrap=True)
     core_table.add_column("Description", style="white")
     core_table.add_row(
         "  -h, --help",
         "Show this help message and exit",
     )
     core_table.add_row(
-        "  -a, --app, --app-name APP",
-        "Scan a single application without a configuration file",
+        "  -a APP",
+        "Scan a single application (short form with space)",
+    )
+    core_table.add_row(
+        "  --app=APP, --app-name=APP",
+        "Scan a single application (long form with equals)",
     )
     core_table.add_row(
         "  -i, --input PATH",
@@ -290,8 +295,11 @@ def show_custom_help() -> None:
     # Examples section
     console.print("[bold yellow]💡 EXAMPLES[/bold yellow]")
     console.print()
-    console.print("  [dim]Scan single app:[/dim]")
+    console.print("  [dim]Scan single app (short form):[/dim]")
     console.print('    [cyan]app-hound -a "Slack"[/cyan]')
+    console.print()
+    console.print("  [dim]Scan single app (long form):[/dim]")
+    console.print('    [cyan]app-hound --app="Slack"[/cyan]')
     console.print()
     console.print("  [dim]Interactive mode:[/dim]")
     console.print('    [cyan]app-hound -a "Discord" --interactive[/cyan]')
@@ -308,7 +316,7 @@ def show_custom_help() -> None:
     )
     console.print()
     console.print(
-        "  [dim italic]Note: -a, --app, and --app-name are interchangeable[/dim italic]"
+        "  [dim italic]Note: Use -a VALUE (space) or --app=VALUE (equals)[/dim italic]"
     )
     console.print()
 
